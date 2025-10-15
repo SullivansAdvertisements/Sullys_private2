@@ -42,3 +42,104 @@ st.divider()
 
 import streamlit as st
 st.title('Sully Bot')
+import os
+from pathlib import Path
+from datetime import datetime
+
+import streamlit as st
+import pandas as pd
+
+# ---- PAGE SETUP
+st.set_page_config(page_title="Sullivan's Advertisements Bot", page_icon="🌿", layout="wide")
+
+# ---- PASSWORD GATE (uses Streamlit Cloud Secret or env var)
+APP_PASS = os.getenv("SULLY_APP_PASSWORD", "").strip()
+if APP_PASS:
+    if "auth_ok" not in st.session_state:
+        st.session_state["auth_ok"] = False
+    if not st.session_state["auth_ok"]:
+        with st.form("login", clear_on_submit=False):
+            st.subheader("🔒 Private access")
+            pw = st.text_input("Enter password", type="password")
+            ok = st.form_submit_button("Enter")
+        if ok:
+            if pw == APP_PASS:
+                st.session_state["auth_ok"] = True
+                st.experimental_rerun()
+            else:
+                st.error("Incorrect password")
+        st.stop()
+
+# ---- HEADER (logo + title)
+logo_path = Path(__file__).parent / "../data" / "sullivans_logo.png"
+if logo_path.exists():
+    st.image(str(logo_path), width=220)
+st.markdown(
+    "<h2 style='text-align:center;margin-top:0;'>Sully’s New & Improved Marketing Bot</h2>",
+    unsafe_allow_html=True,
+)
+st.divider()
+
+# ---- TRY TO IMPORT THE BOT ENGINE
+try:
+    from bot.core import generate_strategy
+    BOT_READY = True
+except Exception as e:
+    BOT_READY = False
+    st.warning("Core engine not found. Using demo mode. Error: {}".format(e))
+
+# ---- SIDEBAR INPUTS
+with st.sidebar:
+    st.header("Inputs")
+    niche = st.selectbox("Niche", ["clothing", "consignment", "musician"])
+    budget = st.number_input("Monthly Budget (USD)", min_value=100.0, value=2500.0, step=50.0)
+    goal = st.selectbox("Primary Goal", ["sales", "conversions", "leads", "awareness", "traffic"])
+    geo = st.text_input("Geo (country/city or radius)", "US")
+    competitors_raw = st.text_area("Competitors (one per line)", "")
+    competitors = [c.strip() for c in competitors_raw.split("\n") if c.strip()]
+    run = st.button("Generate Plan", type="primary")
+
+# ---- MAIN CONTENT
+if run:
+    if BOT_READY:
+        plan = generate_strategy(niche, budget, goal, geo, competitors)
+    else:
+        # Fallback demo plan so page always shows content
+        plan = {
+            "niche": niche,
+            "budget": budget,
+            "goal": goal,
+            "geo": geo,
+            "allocation": {"meta": 40, "google": 35, "tiktok": 15, "twitter": 10},
+            "funnel_split": {"prospecting": 65, "retargeting": 30, "retention": 5},
+            "platforms": {
+                "meta": {"objective": "Sales/Conversions", "budget_pct": 40, "kpis": ["CPA", "ROAS", "CTR"]},
+                "google": {"objective": "Sales/Leads", "budget_pct": 35, "kpis": ["Conv", "CPA", "ROAS"]},
+                "tiktok": {"objective": "Sales/Engagement", "budget_pct": 15, "kpis": ["CPA", "CTR", "Thumbstop"]},
+                "twitter": {"objective": "Awareness/Engagement", "budget_pct": 10, "kpis": ["ER", "CPM"]},
+            },
+        }
+
+    st.subheader("📊 Budget Allocation & Funnel Split")
+    c1, c2 = st.columns(2)
+    c1.bar_chart(pd.DataFrame(plan["allocation"], index=["%"]).T)
+    c2.bar_chart(pd.DataFrame(plan["funnel_split"], index=["%"]).T)
+
+    st.subheader("🧩 Platform Plans")
+    for platform, cfg in plan["platforms"].items():
+        with st.expander(f"{platform.upper()} Plan", expanded=False):
+            st.json(cfg)
+
+    st.subheader("⬇️ Export")
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    md = f"# Strategy — {niche.title()} ({geo}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n\n## Allocation\n" + \
+         "\n".join([f"- **{k}**: {v}%" for k, v in plan["allocation"].items()]) + \
+         "\n\n## Funnel Split\n" + \
+         "\n".join([f"- **{k}**: {v}%" for k, v in plan["funnel_split"].items()]) + \
+         "\n\n## Platforms\n" + \
+         "\n".join([f"\n### {p.upper()}\n- Objective: {cfg.get('objective','')}\n- Budget %: {cfg.get('budget_pct','?')}%\n- KPIs: {', '.join(cfg.get('kpis', []))}" for p, cfg in plan["platforms"].items()])
+    st.download_button("Download plan.md", data=md.encode("utf-8"), file_name="plan.md", mime="text/markdown")
+
+else:
+    st.info("Use the sidebar to select a niche, budget, goal, and geo. Paste competitor links and click **Generate Plan**.")
+    st.write("✅ App is running — waiting for your inputs.")
