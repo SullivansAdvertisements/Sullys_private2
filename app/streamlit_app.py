@@ -38,8 +38,7 @@ with st.sidebar:
     budget = st.number_input("Monthly Budget (USD)", min_value=100.0, value=2500.0, step=50.0)
     goal = st.selectbox("Primary Goal", ["sales","conversions","leads","awareness","traffic"])
     geo = st.text_input("Geo (country/city or radius)", "US")
-    comp_text = st.text_area("Competitor URLs (one per line)", placeholder="https://example.com
-https://competitor.com/locations")
+ comp_text = st.text_area("Competitor URLs (one per line)", placeholder="https://example.com\\nhttps://competitor.com/locations")
     competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
     run = st.button("Generate Plan", type="primary")
 
