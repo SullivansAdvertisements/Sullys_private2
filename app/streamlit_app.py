@@ -3,6 +3,14 @@ from datetime import datetime
 from pathlib import Path
 import streamlit as st
 import pandas as pd
+# --- make the repo root importable so Streamlit can see /bot folder ---
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from bot.core import generate_strategy
 
 st.set_page_config(page_title="Sullivan's Advertisements Bot", page_icon="🌿", layout="wide")
 
