@@ -121,8 +121,8 @@ else:
 chosen = st.text_area("Final targets (edit here before export)", value="\n".join(chosen_locs))
 final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
 
-st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor.")
-   colA, colB = st.columns(2)
+st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor."
+colA, colB = st.columns(2)
     colA.write("**Keyword ideas**")
     colA.write(", ".join(plan.get("insights",{}).get("keywords", [])[:30]) or "—")
     colB.write("**Location hints**")
