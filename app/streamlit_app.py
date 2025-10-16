@@ -119,14 +119,18 @@ else:
 
 # Show and allow manual tweaks
 chosen = st.text_area("Final targets (edit here before export)", value="\n".join(chosen_locs))
-final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
-
 st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor.")
 colA, colB = st.columns(2)
- colA.write("**Keyword ideas**")
-colA.write(", ".join(plan.get("insights",{}).get("keywords", [])[:30]) or "—")
-colB.write("**Location hints**")
-colB.write(", ".join(plan.get("insights",{}).get("locations", [])[:20]) or "—")
+
+colA.write("**Keyword ideas**")
+colA.dataframe(plan.get("keywords", []))
+
+colB.write("**Top competitor locations**")
+colB.dataframe({
+    "Cities": plan.get("insights", {}).get("cities_ranked", []),
+    "States": plan.get("insights", {}).get("states_ranked", [])
+})
+
 
     st.subheader("📊 Budget Allocation & Funnel Split")
     c1, c2 = st.columns(2)
