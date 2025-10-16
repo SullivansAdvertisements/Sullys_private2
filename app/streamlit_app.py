@@ -97,6 +97,32 @@ if run:
     plan = generate_strategy(niche, budget, goal, geo, competitors)
 
     st.subheader("📌 Competitor Insights")
+    # ====== Precise Location Picker ======
+st.subheader("🎯 Target Locations")
+
+ins = plan.get("insights", {})
+ranked_cities = ins.get("cities_ranked", [])
+ranked_states = ins.get("states_ranked", [])
+ranked_zips = ins.get("zips_ranked", [])
+
+# Seed from your mode OR from competitor ranks
+if loc_mode == "Country":
+    chosen_locs = [country]
+elif loc_mode == "States":
+    chosen_locs = selected_states or ranked_states[:10]
+elif loc_mode == "Cities":
+    chosen_locs = selected_cities or ranked_cities[:15]
+elif loc_mode == "ZIPs":
+    chosen_locs = selected_zips or ranked_zips[:50]
+else:
+    chosen_locs = [f"RADIUS {radius_miles}mi around {radius_center}"]
+
+# Show and allow manual tweaks
+chosen = st.text_area("Final targets (edit here before export)", value="\n".join(chosen_locs))
+final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
+
+st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor.")
+
     colA, colB = st.columns(2)
     colA.write("**Keyword ideas**")
     colA.write(", ".join(plan.get("insights",{}).get("keywords", [])[:30]) or "—")
