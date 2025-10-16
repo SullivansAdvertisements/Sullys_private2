@@ -140,6 +140,21 @@ st.caption("Tip: You can paste city names directly into Google Ads bulk location
             st.json(cfg)
 
     st.subheader("⬇️ Export")
+import io
+import pandas as pd
+
+st.markdown("#### Export: Google Ads Locations CSV")
+loc_rows = []
+for t in final_targets:
+    # Google Ads Editor accepts names; IDs are optional (you can add manually in Editor if needed)
+    loc_rows.append({"Target": t, "Match Type": "Location Name"})
+
+loc_df = pd.DataFrame(loc_rows)
+csv_buf = io.StringIO()
+loc_df.to_csv(csv_buf, index=False)
+st.download_button("Download google_ads_locations.csv", data=csv_buf.getvalue().encode("utf-8"),
+                   file_name="google_ads_locations.csv", mime="text/csv")
+
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     md = f"# Strategy — {niche.title()} ({geo}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n"
     md += "\n## Competitor Insights\n"
