@@ -123,10 +123,10 @@ final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
 
 st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor.")
 colA, colB = st.columns(2)
-    colA.write("**Keyword ideas**")
-    colA.write(", ".join(plan.get("insights",{}).get("keywords", [])[:30]) or "—")
-    colB.write("**Location hints**")
-    colB.write(", ".join(plan.get("insights",{}).get("locations", [])[:20]) or "—")
+ colA.write("**Keyword ideas**")
+colA.write(", ".join(plan.get("insights",{}).get("keywords", [])[:30]) or "—")
+colB.write("**Location hints**")
+colB.write(", ".join(plan.get("insights",{}).get("locations", [])[:20]) or "—")
 
     st.subheader("📊 Budget Allocation & Funnel Split")
     c1, c2 = st.columns(2)
