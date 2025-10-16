@@ -97,7 +97,7 @@ if run:
     plan = generate_strategy(niche, budget, goal, geo, competitors)
 
     st.subheader("📌 Competitor Insights")
-    # ====== Precise Location Picker ======
+# ====== Precise Location Picker ======
 st.subheader("🎯 Target Locations")
 
 ins = plan.get("insights", {})
@@ -119,6 +119,8 @@ else:
 
 # Show and allow manual tweaks
 chosen = st.text_area("Final targets (edit here before export)", value="\n".join(chosen_locs))
+final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
+
 st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor.")
 colA, colB = st.columns(2)
 
@@ -131,32 +133,33 @@ colB.dataframe({
     "States": plan.get("insights", {}).get("states_ranked", [])
 })
 
+# ====== Budget Allocation & Funnel Split ======
+st.subheader("📊 Budget Allocation & Funnel Split")
 
-    st.subheader("📊 Budget Allocation & Funnel Split")
-    c1, c2 = st.columns(2)
-    c1.bar_chart(pd.DataFrame(plan["allocation"], index=["%"]).T)
-    c2.bar_chart(pd.DataFrame(plan["funnel_split"], index=["%"]).T)
+col1, col2 = st.columns(2)
 
-    st.subheader("🧩 Campaign Development System — Platform Plans")
-    for platform, cfg in plan["platforms"].items():
-        with st.expander(f"{platform.upper()} — Development Plan", expanded=False):
-            st.json(cfg)
+with col1:
+    st.write("### Example Budget Breakdown")
+    st.markdown("""
+    | Channel | % Allocation | Description |
+    |----------|--------------|--------------|
+    | Google Search | 40% | High-intent search traffic |
+    | Meta Ads | 35% | Retargeting & brand awareness |
+    | TikTok | 15% | Discovery and trend-based ads |
+    | X (Twitter) | 10% | Niche audience engagement |
+    """)
 
-    st.subheader("⬇️ Export")
-import io
-import pandas as pd
+with col2:
+    st.write("### Funnel Split Example")
+    st.markdown("""
+    | Funnel Stage | % Budget | Objective |
+    |---------------|----------|------------|
+    | Awareness | 25% | Reach, Video Views |
+    | Consideration | 35% | Traffic, Engagement |
+    | Conversion | 40% | Sales, Leads |
+    """)
 
-st.markdown("#### Export: Google Ads Locations CSV")
-loc_rows = []
-for t in final_targets:
-    # Google Ads Editor accepts names; IDs are optional (you can add manually in Editor if needed)
-    loc_rows.append({"Target": t, "Match Type": "Location Name"})
-
-loc_df = pd.DataFrame(loc_rows)
-csv_buf = io.StringIO()
-loc_df.to_csv(csv_buf, index=False)
-st.download_button("Download google_ads_locations.csv", data=csv_buf.getvalue().encode("utf-8"),
-                   file_name="google_ads_locations.csv", mime="text/csv")
+st.success("✅ Customize these values per niche to fit your audience strategy.")
 
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     md = f"# Strategy — {niche.title()} ({geo}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n"
