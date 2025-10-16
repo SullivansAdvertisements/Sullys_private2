@@ -44,10 +44,53 @@ with st.sidebar:
     niche = st.selectbox("Niche", ["clothing", "consignment", "musician", "homecare"])
     budget = st.number_input("Monthly Budget (USD)", min_value=100.0, value=2500.0, step=50.0)
     goal = st.selectbox("Primary Goal", ["sales", "conversions", "leads", "awareness", "traffic"])
-    geo = st.text_input("Geo (country/city or radius)", "US")
-    comp_text = st.text_area("Competitor URLs (one per line)", placeholder="https://example.com\\nhttps://competitor.com/locations")
-    competitors = [c.strip() for c in comp_text.split("\\n") if c.strip()]
+
+    st.markdown("### Location mode")
+    loc_mode = st.radio("Choose how to target", ["Country", "States", "Cities", "ZIPs", "Radius"], horizontal=True)
+
+    default_country = "US"
+    country = st.text_input("Country (ISO code or name)", value=default_country)
+
+    selected_states = []
+    selected_cities = []
+    selected_zips = []
+    radius_center = ""
+    radius_miles = 10
+
+    if loc_mode == "States":
+        st.caption("Type states or abbreviations, press Enter after each (e.g., CA, TX, Florida)")
+        selected_states = st.tags_input("States", ["CA","TX"])
+    elif loc_mode == "Cities":
+        st.caption("Type city names, press Enter after each (e.g., Austin, Miami)")
+        selected_cities = st.tags_input("Cities", ["Austin","Miami"])
+    elif loc_mode == "ZIPs":
+        st.caption("Paste ZIP codes or upload a CSV with a 'zip' column")
+        zip_text = st.text_area("ZIPs (comma or newline separated)", "")
+        uploaded = st.file_uploader("Optional: upload ZIP CSV", type=["csv"])
+        if uploaded is not None:
+            import pandas as pd
+            try:
+                df = pd.read_csv(uploaded)
+                if "zip" in df.columns:
+                    selected_zips = [str(z).strip() for z in df["zip"].dropna().astype(str).tolist()]
+                    st.success(f"Loaded {len(selected_zips)} ZIPs from CSV")
+            except Exception as e:
+                st.error(f"CSV read error: {e}")
+        if zip_text.strip():
+            for piece in re.split(r"[,\s]+", zip_text.strip()):
+                if piece.isdigit() and len(piece) in (5,9):
+                    selected_zips.append(piece[:5])
+        selected_zips = sorted(set(selected_zips))
+    elif loc_mode == "Radius":
+        radius_center = st.text_input("Center address (e.g., 123 Main St, Austin, TX)")
+        radius_miles = st.number_input("Radius (miles)", min_value=1, max_value=100, value=15)
+
+    st.markdown("### Competitor URLs")
+    comp_text = st.text_area("One per line", placeholder="https://example.com\nhttps://competitor.com/locations")
+    competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
+
     run = st.button("Generate Plan", type="primary")
+
 
 
 if run:
