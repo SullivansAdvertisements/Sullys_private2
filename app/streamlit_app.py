@@ -160,8 +160,7 @@ with col2:
     """)
 
 st.success("✅ Customize these values per niche to fit your audience strategy.")
-
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+  ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     md = f"# Strategy — {niche.title()} ({geo}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n"
     md += "\n## Competitor Insights\n"
     md += "- Keywords: " + (", ".join(plan['insights'].get('keywords', [])[:30]) or "—") + "\n"
