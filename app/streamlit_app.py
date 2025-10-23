@@ -1,46 +1,40 @@
+# ==========================
+# Sully — Streamlit App
+# Clean full replacement
+# ==========================
+
 import os
-from datetime import datetime
-from pathlib import Path
-import streamlit as st
-import pandas as pd
-# --- make the repo root importable so Streamlit can see /bot folder ---
 import sys
 from pathlib import Path
+from datetime import datetime
+import io
+import json
+
+import streamlit as st
+import pandas as pd
+
+# --- Make repo root importable so we can import bot/core.py ---
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+    sys.path.append(str(ROOT))
 
-from bot.core import generate_strategy
+# Import your strategy function
+# Expecting: bot/core.py -> def generate_strategy(niche, budget, goal, geo, competitors:list) -> dict
+from bot.core import generate_strategy  # noqa: E402
 
-st.set_page_config(page_title="Sullivan's Advertisements Bot", page_icon="🌿", layout="wide")
 
-APP_PASS = os.getenv("SULLY_APP_PASSWORD","").strip()
-if APP_PASS:
-    if "auth_ok" not in st.session_state:
-        st.session_state["auth_ok"] = False
-    if not st.session_state["auth_ok"]:
-        with st.form("login"):
-            st.subheader("🔒 Private access")
-            pw = st.text_input("Enter password", type="password")
-            ok = st.form_submit_button("Enter")
-        if ok:
-            if pw == APP_PASS:
-                st.session_state["auth_ok"] = True
-                st.experimental_rerun()
-            else:
-                st.error("Incorrect password")
-        st.stop()
+# -------------------------
+# Page config
+# -------------------------
+st.set_page_config(page_title="Sully's Marketing Bot", page_icon="💼", layout="wide")
 
-logo_path = Path(__file__).parent / "../data" / "sullivans_logo.png"
-if logo_path.exists():
-    st.image(str(logo_path), width=220)
-st.markdown("<h2 style='text-align:center;margin-top:0;'>Sully’s New & Improved Marketing Bot</h2>", unsafe_allow_html=True)
-st.caption("Campaign Development System + Competitor Intelligence")
-st.divider()
 
-from bot.core import generate_strategy
+# -------------------------
+# Sidebar inputs
+# -------------------------
 with st.sidebar:
     st.header("Inputs")
+
     niche = st.selectbox("Niche", ["clothing", "consignment", "musician", "homecare"])
     budget = st.number_input("Monthly Budget (USD)", min_value=100.0, value=2500.0, step=50.0)
     goal = st.selectbox("Primary Goal", ["sales", "conversions", "leads", "awareness", "traffic"])
@@ -48,67 +42,106 @@ with st.sidebar:
     st.markdown("### Location mode")
     loc_mode = st.radio("Choose how to target", ["Country", "States", "Cities", "ZIPs", "Radius"], horizontal=True)
 
-    default_country = "US"
-    country = st.text_input("Country (ISO code or name)", value=default_country)
+    # Country (simple text to avoid extra libs)
+    country = st.text_input("Country (ISO/name)", value="US")
 
-    selected_states = []
-    selected_cities = []
-    selected_zips = []
+    # Simple, widely-compatible inputs (avoid non-standard widgets)
+    states_raw = cities_raw = zips_raw = ""
     radius_center = ""
-    radius_miles = 10
+    radius_miles = 15
 
     if loc_mode == "States":
-        st.caption("Type states or abbreviations, press Enter after each (e.g., CA, TX, Florida)")
-        selected_states = st.tags_input("States", ["CA","TX"])
+        st.caption("Enter states or abbreviations separated by commas or new lines (e.g., CA, TX, Florida)")
+        states_raw = st.text_area("States list", value="")
     elif loc_mode == "Cities":
-        st.caption("Type city names, press Enter after each (e.g., Austin, Miami)")
-        selected_cities = st.tags_input("Cities", ["Austin","Miami"])
+        st.caption("Enter city names separated by commas or new lines (e.g., Austin, Miami)")
+        cities_raw = st.text_area("Cities list", value="")
     elif loc_mode == "ZIPs":
-        st.caption("Paste ZIP codes or upload a CSV with a 'zip' column")
-        zip_text = st.text_area("ZIPs (comma or newline separated)", "")
-        uploaded = st.file_uploader("Optional: upload ZIP CSV", type=["csv"])
-        if uploaded is not None:
-            import pandas as pd
-            try:
-                df = pd.read_csv(uploaded)
-                if "zip" in df.columns:
-                    selected_zips = [str(z).strip() for z in df["zip"].dropna().astype(str).tolist()]
-                    st.success(f"Loaded {len(selected_zips)} ZIPs from CSV")
-            except Exception as e:
-                st.error(f"CSV read error: {e}")
-        if zip_text.strip():
-            for piece in re.split(r"[,\s]+", zip_text.strip()):
-                if piece.isdigit() and len(piece) in (5,9):
-                    selected_zips.append(piece[:5])
-        selected_zips = sorted(set(selected_zips))
+        st.caption("Enter ZIPs separated by commas or new lines (e.g., 78701, 10001)")
+        zips_raw = st.text_area("ZIP list", value="")
     elif loc_mode == "Radius":
-        radius_center = st.text_input("Center address (e.g., 123 Main St, Austin, TX)")
+        radius_center = st.text_input("Center address", value="")
         radius_miles = st.number_input("Radius (miles)", min_value=1, max_value=100, value=15)
 
     st.markdown("### Competitor URLs")
-    comp_text = st.text_area("One per line", placeholder="https://example.com\nhttps://competitor.com/locations")
+    comp_text = st.text_area(
+        "One per line",
+        placeholder="https://example.com\nhttps://competitor.com/locations"
+    )
     competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
 
     run = st.button("Generate Plan", type="primary")
 
 
+# -------------------------
+# Helpers
+# -------------------------
+def _split_list(raw: str):
+    """Split comma/newline-separated text into a clean unique list."""
+    if not raw:
+        return []
+    parts = []
+    for chunk in raw.replace(",", "\n").split("\n"):
+        v = chunk.strip()
+        if v:
+            parts.append(v)
+    # Keep order but unique
+    seen = set()
+    out = []
+    for p in parts:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
 
+
+# -------------------------
+# Build the plan when requested
+# -------------------------
 if run:
-    plan = generate_strategy(niche, budget, goal, geo, competitors)
+    # Derive human-readable geo for strategy logic
+    if loc_mode == "Country":
+        geo = country
+    elif loc_mode == "States":
+        selected_states = _split_list(states_raw)
+        geo = ", ".join(selected_states) if selected_states else country
+    elif loc_mode == "Cities":
+        selected_cities = _split_list(cities_raw)
+        geo = ", ".join(selected_cities) if selected_cities else country
+    elif loc_mode == "ZIPs":
+        selected_zips = _split_list(zips_raw)
+        # Normalize ZIPs to first 5 if they look like ZIP+4
+        selected_zips = [z.strip()[:5] if z and z[0].isdigit() else z for z in selected_zips]
+        geo = ", ".join(selected_zips) if selected_zips else country
+    else:  # Radius
+        geo = f"{radius_miles}mi around {radius_center}" if radius_center else country
 
-    st.subheader("📌 Competitor Insights")
-# ====== Precise Location Picker ======
-st.subheader("🎯 Target Locations")
-# Safety fallback so Streamlit doesn't crash if plan isn't defined yet
+    # Generate the plan via your core function
+    plan = generate_strategy(niche, float(budget), goal, geo, competitors)
+    st.success("✅ Plan generated!")
+
+# Ensure the app doesn't crash before user clicks the button
 if 'plan' not in locals():
     plan = {"insights": {}, "keywords": []}
 
-ins = plan.get("insights", {})
-ranked_cities = ins.get("cities_ranked", [])
-ranked_states = ins.get("states_ranked", [])
-ranked_zips = ins.get("zips_ranked", [])
 
-# Seed from your mode OR from competitor ranks
+# -------------------------
+# Target Locations section
+# -------------------------
+st.subheader("🎯 Target Locations")
+
+# Pull ranked locations from plan insights if present
+ins = plan.get("insights", {})
+ranked_cities = ins.get("cities_ranked", []) or []
+ranked_states = ins.get("states_ranked", []) or []
+ranked_zips = ins.get("zips_ranked", []) or []
+
+# Recreate selection lists from sidebar raw text (for display/edit)
+selected_states = _split_list(states_raw) if loc_mode == "States" else []
+selected_cities = _split_list(cities_raw) if loc_mode == "Cities" else []
+selected_zips = _split_list(zips_raw) if loc_mode == "ZIPs" else []
+
+# Seed from your mode OR fallback to competitor ranks
 if loc_mode == "Country":
     chosen_locs = [country]
 elif loc_mode == "States":
@@ -118,57 +151,61 @@ elif loc_mode == "Cities":
 elif loc_mode == "ZIPs":
     chosen_locs = selected_zips or ranked_zips[:50]
 else:
-    chosen_locs = [f"RADIUS {radius_miles}mi around {radius_center}"]
+    chosen_locs = [f"RADIUS {radius_miles}mi around {radius_center}"] if radius_center else [country]
 
-# Show and allow manual tweaks
-chosen = st.text_area("Final targets (edit here before export)", value="\n".join(chosen_locs))
+# Let user tweak final list
+chosen = st.text_area("Final targets (edit before export)", value="\n".join(chosen_locs))
 final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
 
-st.caption("Tip: You can paste city names directly into Google Ads bulk location add, or use Ads Editor.")
-colA, colB = st.columns(2)
+st.caption("Tip: You can paste city/state/ZIP lists directly into Google Ads (bulk add) or Ads Editor.")
 
+colA, colB = st.columns(2)
 colA.write("**Keyword ideas**")
-colA.dataframe(plan.get("keywords", []))
+colA.dataframe(pd.DataFrame({"Keywords": plan.get("keywords", [])}))
 
 colB.write("**Top competitor locations**")
-colB.dataframe({
-    "Cities": plan.get("insights", {}).get("cities_ranked", []),
-    "States": plan.get("insights", {}).get("states_ranked", [])
-})
+colB.dataframe(pd.DataFrame({
+    "Cities": ranked_cities[:20] if ranked_cities else [],
+    "States": ranked_states[:20] if ranked_states else []
+}))
 
-# ====== Budget Allocation & Funnel Split ======
+
+# -------------------------
+# Budget Allocation (example tables)
+# -------------------------
 st.subheader("📊 Budget Allocation & Funnel Split")
 
-col1, col2 = st.columns(2)
-
-with col1:
+c1, c2 = st.columns(2)
+with c1:
     st.write("### Example Budget Breakdown")
-    st.markdown("""
-    | Channel | % Allocation | Description |
-    |----------|--------------|--------------|
-    | Google Search | 40% | High-intent search traffic |
-    | Meta Ads | 35% | Retargeting & brand awareness |
-    | TikTok | 15% | Discovery and trend-based ads |
-    | X (Twitter) | 10% | Niche audience engagement |
-    """)
-
-with col2:
+    st.markdown(
+        """
+| Channel        | % Allocation | Description                    |
+|----------------|--------------|--------------------------------|
+| Google Search  | 40%          | High-intent search traffic     |
+| Meta Ads       | 35%          | Retargeting & awareness        |
+| TikTok         | 15%          | Discovery & trends             |
+| X (Twitter)    | 10%          | Niche audience engagement      |
+        """
+    )
+with c2:
     st.write("### Funnel Split Example")
-    st.markdown("""
-    | Funnel Stage | % Budget | Objective |
-    |---------------|----------|------------|
-    | Awareness | 25% | Reach, Video Views |
-    | Consideration | 35% | Traffic, Engagement |
-    | Conversion | 40% | Sales, Leads |
-    """)
+    st.markdown(
+        """
+| Funnel Stage   | % Budget | Objective              |
+|----------------|----------|------------------------|
+| Awareness      | 25%      | Reach, Video Views     |
+| Consideration  | 35%      | Traffic, Engagement    |
+| Conversion     | 40%      | Sales, Leads           |
+        """
+    )
+st.success("✅ Customize these values per niche to fit your audience strategy.")
 
-# ====== Campaign Summary & Export ======
+
+# -------------------------
+# Campaign Summary & Export
+# -------------------------
 st.subheader("🧾 Campaign Summary & Export")
-
-from datetime import datetime
-import io
-import pandas as pd
-import json
 
 md = f"# Strategy — {niche.title()} ({country}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n"
 md += "\n## Competitor Insights\n"
@@ -179,18 +216,18 @@ export_name = f"campaign_export_{ts}.json"
 
 summary = {
     "niche": niche,
-    "budget_usd": budget,
+    "budget_usd": float(budget),
     "goal": goal,
     "locations": final_targets,
     "keywords": plan.get("keywords", []),
-    "competitor_cities": plan.get("insights", {}).get("cities_ranked", []),
-    "competitor_states": plan.get("insights", {}).get("states_ranked", []),
+    "competitor_cities": ranked_cities,
+    "competitor_states": ranked_states,
     "generated_at": ts
 }
 
+# JSON export
 json_buf = io.StringIO()
 json.dump(summary, json_buf, indent=2)
-
 st.download_button(
     label="⬇️ Download Campaign Plan (JSON)",
     data=json_buf.getvalue(),
@@ -198,5 +235,18 @@ st.download_button(
     mime="application/json"
 )
 
+# Optional: Locations CSV export for Ads/Editor
+st.markdown("#### Export: Google Ads Locations CSV")
+loc_rows = [{"Target": t, "Match Type": "Location Name"} for t in final_targets]
+loc_df = pd.DataFrame(loc_rows)
+csv_buf = io.StringIO()
+loc_df.to_csv(csv_buf, index=False)
+st.download_button(
+    "⬇️ Download google_ads_locations.csv",
+    data=csv_buf.getvalue().encode("utf-8"),
+    file_name="google_ads_locations.csv",
+    mime="text/csv"
+)
+
 st.markdown("---")
-st.info("💡 Tip: Use this exported JSON to feed your Google Ads uploader or future Meta/TikTok campaign templates.")
+st.info("💡 Use the JSON with your Google Ads API uploader, and the CSV for bulk location adds in Ads or Ads Editor.")
