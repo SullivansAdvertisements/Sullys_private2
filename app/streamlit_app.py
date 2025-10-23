@@ -99,6 +99,9 @@ if run:
     st.subheader("📌 Competitor Insights")
 # ====== Precise Location Picker ======
 st.subheader("🎯 Target Locations")
+# Safety fallback so Streamlit doesn't crash if plan isn't defined yet
+if 'plan' not in locals():
+    plan = {"insights": {}, "keywords": []}
 
 ins = plan.get("insights", {})
 ranked_cities = ins.get("cities_ranked", [])
