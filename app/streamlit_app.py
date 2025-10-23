@@ -159,17 +159,41 @@ with col2:
     | Conversion | 40% | Sales, Leads |
     """)
 
-st.success("✅ Customize these values per niche to fit your audience strategy.")
+# ====== Campaign Summary & Export ======
+st.subheader("🧾 Campaign Summary & Export")
+
+from datetime import datetime
+import io
+import pandas as pd
+import json
+
+md = f"# Strategy — {niche.title()} ({country}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n"
+md += "\n## Competitor Insights\n"
+md += "\nTop keywords and target regions derived from competitor data.\n"
+
 ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-md = f"# Strategy — {niche.title()} ({geo}) — ${budget:,.0f}/mo\n*Goal:* {goal}\n"
-    md += "\n## Competitor Insights\n"
-    md += "- Keywords: " + (", ".join(plan['insights'].get('keywords', [])[:30]) or "—") + "\n"
-    md += "- Locations: " + (", ".join(plan['insights'].get('locations', [])[:20]) or "—") + "\n"
-    md += "\n## Allocation\n" + "\n".join([f"- **{k}**: {v}%" for k,v in plan['allocation'].items()])
-    md += "\n\n## Funnel Split\n" + "\n".join([f"- **{k}**: {v}%" for k,v in plan['funnel_split'].items()])
-    md += "\n\n## Platforms\n"
-    for p,cfg in plan["platforms"].items():
-        md += f"\n### {p.upper()}\n- Objective: {cfg.get('objective','')}\n- Budget %: {cfg.get('budget_pct','?')}%\n"              f"- KPIs: {', '.join(cfg.get('kpis', []))}\n"
-    st.download_button("Download plan.md", data=md.encode("utf-8"), file_name="plan.md", mime="text/markdown")
-else:
-    st.info("Select a niche, add budget & goal, paste competitor links (optional), then click **Generate Plan**.")
+export_name = f"campaign_export_{ts}.json"
+
+summary = {
+    "niche": niche,
+    "budget_usd": budget,
+    "goal": goal,
+    "locations": final_targets,
+    "keywords": plan.get("keywords", []),
+    "competitor_cities": plan.get("insights", {}).get("cities_ranked", []),
+    "competitor_states": plan.get("insights", {}).get("states_ranked", []),
+    "generated_at": ts
+}
+
+json_buf = io.StringIO()
+json.dump(summary, json_buf, indent=2)
+
+st.download_button(
+    label="⬇️ Download Campaign Plan (JSON)",
+    data=json_buf.getvalue(),
+    file_name=export_name,
+    mime="application/json"
+)
+
+st.markdown("---")
+st.info("💡 Tip: Use this exported JSON to feed your Google Ads uploader or future Meta/TikTok campaign templates.")
