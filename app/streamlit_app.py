@@ -69,6 +69,40 @@ with st.sidebar:
         placeholder="https://example.com\nhttps://competitor.com/locations"
     )
     competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
+st.markdown("### Competitor URLs")
+comp_text = st.text_area(
+    "One per line",
+    placeholder="https://example.com\nhttps://competitor.com/locations"
+)
+competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
+
+# --------------------------------
+# INSERT GOOGLE TRENDS HERE  ⬇️⬇️⬇️
+# --------------------------------
+
+st.markdown("### Google Trends")
+use_trends = st.checkbox("Use Google Trends boost", value=True)
+
+timeframe = st.selectbox(
+    "Trends timeframe",
+    ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
+    index=2
+)
+
+gprop_choice = st.selectbox(
+    "Search Source",
+    ["(Web)", "news", "images", "youtube", "froogle"],
+    index=0
+)
+gprop = "" if gprop_choice == "(Web)" else gprop_choice
+
+trend_seeds_raw = st.text_area(
+    "Trend seed terms (comma/newline)",
+    placeholder="streetwear, vintage clothing\nhip hop fashion\ntrap beats\ncaregiver services"
+)
+
+# (IMPORTANT) BUTTON SHOULD BE BELOW TRENDS
+run = st.button("Generate Plan", type="primary")
 
     run = st.button("Generate Plan", type="primary")
 
