@@ -169,6 +169,76 @@ colB.dataframe(pd.DataFrame({
     "States": ranked_states[:20] if ranked_states else []
 }))
 
+# -------------------------
+# Google Trends Enrichment
+# -------------------------
+st.subheader("📈 Google Trends Insights")
+
+tr_seed_terms = []
+if trend_seeds_raw.strip():
+    # user-specified seeds
+    for chunk in trend_seeds_raw.replace(",", "\n").split("\n"):
+        v = chunk.strip()
+        if v:
+            tr_seed_terms.append(v)
+else:
+    # auto-pick from plan keywords
+    auto = plan.get("keywords", [])
+    # pick up to 5 short, high-intent seeds
+    for k in auto:
+        k = str(k)
+        if 2 <= len(k.split()) <= 4:  # avoid super long phrases
+            tr_seed_terms.append(k)
+        if len(tr_seed_terms) >= 5:
+            break
+    if not tr_seed_terms and auto:
+        tr_seed_terms = [str(auto[0])]
+
+if use_trends and tr_seed_terms:
+    geo_for_trends = country if loc_mode == "Country" else "US"  # simple default
+    tr = get_trends(tr_seed_terms, geo=geo_for_trends, timeframe=timeframe, gprop=gprop)
+
+    if tr.get("error"):
+        st.warning(f"Trends error: {tr['error']}")
+    else:
+        # Interest over time chart
+        iot = tr.get("interest_over_time")
+        if isinstance(iot, pd.DataFrame) and not iot.empty:
+            st.write("**Interest over time**")
+            st.line_chart(iot)
+
+        # Top regions dataframe
+        by_region = tr.get("by_region")
+        if isinstance(by_region, pd.DataFrame) and not by_region.empty:
+            st.write("**Top regions (by interest)**")
+            st.dataframe(by_region.head(25))
+
+            # Offer to append top regions to targeting
+            add_regions = st.checkbox("Append top regions to targeting", value=False)
+            if add_regions:
+                # Grab top 10 region names (index)
+                top_names = [str(idx) for idx in by_region.head(10).index.tolist()]
+                # Merge into final_targets textarea
+                merged = final_targets + [n for n in top_names if n not in final_targets]
+                final_targets[:] = merged  # mutate the list
+                # Re-render the textarea
+                st.success("Added top regions to targeting.")
+
+        # Related queries (suggestions)
+        sugg = tr.get("related_suggestions", [])
+        if sugg:
+            st.write("**Related queries (Top + Rising)**")
+            st.dataframe(pd.DataFrame({"Query": sugg[:50]}))
+
+            # Offer to append 10 related queries as Broad keywords
+            add_kw = st.checkbox("Append 10 related queries to keywords (as Broad)", value=False)
+            if add_kw:
+                base = plan.get("keywords", [])
+                extra = [f"+{q.replace(' ', ' +')}" for q in sugg[:10]]
+                plan["keywords"] = base + extra
+                st.success("Added related queries to keywords.")
+else:
+    st.info("Add trend seed terms or let the bot auto-pick from your plan keywords.")
 
 # -------------------------
 # Budget Allocation (example tables)
