@@ -42,25 +42,25 @@ with st.sidebar:
     st.markdown("### Location mode")
     loc_mode = st.radio("Choose how to target", ["Country", "States", "Cities", "ZIPs", "Radius"], horizontal=True)
 
-    # Country (simple text to avoid extra libs)
     country = st.text_input("Country (ISO/name)", value="US")
 
-    # Simple, widely-compatible inputs (avoid non-standard widgets)
-    states_raw = cities_raw = zips_raw = ""
+    states_raw = ""
+    cities_raw = ""
+    zips_raw = ""
     radius_center = ""
     radius_miles = 15
 
     if loc_mode == "States":
-        st.caption("Enter states or abbreviations separated by commas or new lines (e.g., CA, TX, Florida)")
+        st.caption("Enter states separated by commas or new lines")
         states_raw = st.text_area("States list", value="")
     elif loc_mode == "Cities":
-        st.caption("Enter city names separated by commas or new lines (e.g., Austin, Miami)")
+        st.caption("Enter city names")
         cities_raw = st.text_area("Cities list", value="")
     elif loc_mode == "ZIPs":
-        st.caption("Enter ZIPs separated by commas or new lines (e.g., 78701, 10001)")
+        st.caption("Enter ZIPs")
         zips_raw = st.text_area("ZIP list", value="")
     elif loc_mode == "Radius":
-        radius_center = st.text_input("Center address", value="")
+        radius_center = st.text_input("Center address")
         radius_miles = st.number_input("Radius (miles)", min_value=1, max_value=100, value=15)
 
     st.markdown("### Competitor URLs")
@@ -69,42 +69,36 @@ with st.sidebar:
         placeholder="https://example.com\nhttps://competitor.com/locations"
     )
     competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
-st.markdown("### Competitor URLs")
-comp_text = st.text_area(
-    "One per line",
-    placeholder="https://example.com\nhttps://competitor.com/locations"
-)
-competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
 
-# --------------------------------
-# INSERT GOOGLE TRENDS HERE  ⬇️⬇️⬇️
-# --------------------------------
+    # ----------------------------------------
+    # GOOGLE TRENDS SECTION (correct indentation)
+    # ----------------------------------------
+    st.markdown("### Google Trends")
+    use_trends = st.checkbox("Use Google Trends boost", value=True)
 
-st.markdown("### Google Trends")
-use_trends = st.checkbox("Use Google Trends boost", value=True)
+    timeframe = st.selectbox(
+        "Trends timeframe",
+        ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
+        index=2
+    )
 
-timeframe = st.selectbox(
-    "Trends timeframe",
-    ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
-    index=2
-)
+    gprop_choice = st.selectbox(
+        "Search Source",
+        ["(Web)", "news", "images", "youtube", "froogle"],
+        index=0
+    )
+    gprop = "" if gprop_choice == "(Web)" else gprop_choice
 
-gprop_choice = st.selectbox(
-    "Search Source",
-    ["(Web)", "news", "images", "youtube", "froogle"],
-    index=0
-)
-gprop = "" if gprop_choice == "(Web)" else gprop_choice
+    trend_seeds_raw = st.text_area(
+        "Trend seed terms (comma/newline)",
+        placeholder="streetwear, vintage clothing\ntrap beats\ncaregiver services"
+    )
 
-trend_seeds_raw = st.text_area(
-    "Trend seed terms (comma/newline)",
-    placeholder="streetwear, vintage clothing\nhip hop fashion\ntrap beats\ncaregiver services"
-)
-
-# (IMPORTANT) BUTTON SHOULD BE BELOW TRENDS
-run = st.button("Generate Plan", type="primary")
-
+    # ----------------------------------------
+    # BUTTON – MUST NOT BE INDENTED MORE THAN THIS
+    # ----------------------------------------
     run = st.button("Generate Plan", type="primary")
+
 
 
 # -------------------------
