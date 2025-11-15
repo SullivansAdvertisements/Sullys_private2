@@ -168,6 +168,12 @@ colB.dataframe(pd.DataFrame({
     "Cities": ranked_cities[:20] if ranked_cities else [],
     "States": ranked_states[:20] if ranked_states else []
 }))
+# ---- Safety: define Trends controls if sidebar wasn't added yet ----
+if 'trend_seeds_raw' not in locals(): trend_seeds_raw = ""
+if 'use_trends' not in locals(): use_trends = False
+if 'timeframe' not in locals(): timeframe = "today 12-m"
+if 'gprop' not in locals(): gprop = ""
+if 'country' not in locals(): country = "US"
 
 # -------------------------
 # Google Trends Enrichment
