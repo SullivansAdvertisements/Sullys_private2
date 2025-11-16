@@ -70,158 +70,80 @@ with st.sidebar:
     )
     competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
 
-    # ----------------------------------------
-    # GOOGLE TRENDS SECTION (correct indentation)
-    # ----------------------------------------
-    st.markdown("### Google Trends")
-    use_trends = st.checkbox("Use Google Trends boost", value=True)
-
-    timeframe = st.selectbox(
-        "Trends timeframe",
-        ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
-        index=2
-    )
-
-    gprop_choice = st.selectbox(
-        "Search Source",
-        ["(Web)", "news", "images", "youtube", "froogle"],
-        index=0
-    )
-    gprop = "" if gprop_choice == "(Web)" else gprop_choice
-
-    trend_seeds_raw = st.text_area(
-        "Trend seed terms (comma/newline)",
-        placeholder="streetwear, vintage clothing\ntrap beats\ncaregiver services"
-    )
-
-    # ----------------------------------------
-    # BUTTON – MUST NOT BE INDENTED MORE THAN THIS
-    # ----------------------------------------
-    run = st.button("Generate Plan", type="primary")
-
-
-
 # -------------------------
-# Helpers
-# -------------------------
-def _split_list(raw: str):
-    """Split comma/newline-separated text into a clean unique list."""
-    if not raw:
-        return []
-    parts = []
-    for chunk in raw.replace(",", "\n").split("\n"):
-        v = chunk.strip()
-        if v:
-            parts.append(v)
-    # Keep order but unique
-    seen = set()
-    out = []
-    for p in parts:
-        if p not in seen:
-            seen.add(p)
-            out.append(p)
-    return out
-
-
-# -------------------------
-# Build the plan when requested
-# -------------------------
-if run:
-    # Derive human-readable geo for strategy logic
-    if loc_mode == "Country":
-        geo = country
-    elif loc_mode == "States":
-        selected_states = _split_list(states_raw)
-        geo = ", ".join(selected_states) if selected_states else country
-    elif loc_mode == "Cities":
-        selected_cities = _split_list(cities_raw)
-        geo = ", ".join(selected_cities) if selected_cities else country
-    elif loc_mode == "ZIPs":
-        selected_zips = _split_list(zips_raw)
-        # Normalize ZIPs to first 5 if they look like ZIP+4
-        selected_zips = [z.strip()[:5] if z and z[0].isdigit() else z for z in selected_zips]
-        geo = ", ".join(selected_zips) if selected_zips else country
-    else:  # Radius
-        geo = f"{radius_miles}mi around {radius_center}" if radius_center else country
-
-    # Generate the plan via your core function
-    plan = generate_strategy(niche, float(budget), goal, geo, competitors)
-    st.success("✅ Plan generated!")
-
-# Ensure the app doesn't crash before user clicks the button
-if 'plan' not in locals():
-    plan = {"insights": {}, "keywords": []}
-
-
-# -------------------------
-# Target Locations section
-# -------------------------
-st.subheader("🎯 Target Locations")
-
-# Pull ranked locations from plan insights if present
-ins = plan.get("insights", {})
-ranked_cities = ins.get("cities_ranked", []) or []
-ranked_states = ins.get("states_ranked", []) or []
-ranked_zips = ins.get("zips_ranked", []) or []
-
-# Recreate selection lists from sidebar raw text (for display/edit)
-selected_states = _split_list(states_raw) if loc_mode == "States" else []
-selected_cities = _split_list(cities_raw) if loc_mode == "Cities" else []
-selected_zips = _split_list(zips_raw) if loc_mode == "ZIPs" else []
-
-# Seed from your mode OR fallback to competitor ranks
-if loc_mode == "Country":
-    chosen_locs = [country]
-elif loc_mode == "States":
-    chosen_locs = selected_states or ranked_states[:10]
-elif loc_mode == "Cities":
-    chosen_locs = selected_cities or ranked_cities[:15]
-elif loc_mode == "ZIPs":
-    chosen_locs = selected_zips or ranked_zips[:50]
-else:
-    chosen_locs = [f"RADIUS {radius_miles}mi around {radius_center}"] if radius_center else [country]
-
-# Let user tweak final list
-chosen = st.text_area("Final targets (edit before export)", value="\n".join(chosen_locs))
-final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
-
-st.caption("Tip: You can paste city/state/ZIP lists directly into Google Ads (bulk add) or Ads Editor.")
-
-colA, colB = st.columns(2)
-colA.write("**Keyword ideas**")
-colA.dataframe(pd.DataFrame({"Keywords": plan.get("keywords", [])}))
-
-colB.write("**Top competitor locations**")
-colB.dataframe(pd.DataFrame({
-    "Cities": ranked_cities[:20] if ranked_cities else [],
-    "States": ranked_states[:20] if ranked_states else []
-}))
-# ---- Safety: define Trends controls if sidebar wasn't added yet ----
-if 'trend_seeds_raw' not in locals(): trend_seeds_raw = ""
-if 'use_trends' not in locals(): use_trends = False
-if 'timeframe' not in locals(): timeframe = "today 12-m"
-if 'gprop' not in locals(): gprop = ""
-if 'country' not in locals(): country = "US"
-
-# -------------------------
-# Google Trends Enrichment
+# Google Trends Insights
 # -------------------------
 st.subheader("📈 Google Trends Insights")
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_trends(seed_terms, geo="US", timeframe="today 12-m", gprop=""):
+    """
+    seed_terms: list[str]
+    geo: e.g. "US", "GB", "US-CT", "" for worldwide
+    timeframe: "now 7-d", "today 3-m", "today 12-m", "today 5-y"
+    gprop: "", "news", "images", "youtube", "froogle"
+    """
+    if not seed_terms:
+        return {}
+
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360)
+        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo, gprop=gprop)
+
+        out = {}
+
+        # Interest over time
+        iot = pytrends.interest_over_time()
+        if isinstance(iot, pd.DataFrame) and not iot.empty:
+            if "isPartial" in iot.columns:
+                iot = iot.drop(columns=["isPartial"])
+            out["interest_over_time"] = iot
+
+        # Interest by region
+        reg = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
+        if isinstance(reg, pd.DataFrame) and not reg.empty:
+            first = seed_terms[0]
+            if first in reg.columns:
+                reg = reg.sort_values(first, ascending=False)
+            out["by_region"] = reg
+
+        # Related queries (top + rising)
+        rq = pytrends.related_queries()
+        suggestions = []
+        if isinstance(rq, dict):
+            for term, buckets in rq.items():
+                for key in ("top", "rising"):
+                    df = buckets.get(key)
+                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
+                        suggestions.extend(df["query"].dropna().astype(str).tolist())
+
+        # De-dupe suggestions
+        seen = set()
+        uniq = []
+        for s in suggestions:
+            if s not in seen:
+                seen.add(s)
+                uniq.append(s)
+        out["related_suggestions"] = uniq[:100]
+
+        return out
+    except Exception as e:
+        return {"error": str(e)}
+
+# ---- Build seed terms list ----
 tr_seed_terms = []
-if trend_seeds_raw.strip():
-    # user-specified seeds
+if 'trend_seeds_raw' in locals() and trend_seeds_raw.strip():
+    # user-specified seeds from sidebar
     for chunk in trend_seeds_raw.replace(",", "\n").split("\n"):
         v = chunk.strip()
         if v:
             tr_seed_terms.append(v)
 else:
-    # auto-pick from plan keywords
+    # auto-pick from plan keywords if none typed
     auto = plan.get("keywords", [])
-    # pick up to 5 short, high-intent seeds
     for k in auto:
         k = str(k)
-        if 2 <= len(k.split()) <= 4:  # avoid super long phrases
+        if 2 <= len(k.split()) <= 4:
             tr_seed_terms.append(k)
         if len(tr_seed_terms) >= 5:
             break
@@ -229,50 +151,29 @@ else:
         tr_seed_terms = [str(auto[0])]
 
 if use_trends and tr_seed_terms:
-    geo_for_trends = country if loc_mode == "Country" else "US"  # simple default
+    geo_for_trends = country if loc_mode == "Country" else "US"
     tr = get_trends(tr_seed_terms, geo=geo_for_trends, timeframe=timeframe, gprop=gprop)
 
     if tr.get("error"):
         st.warning(f"Trends error: {tr['error']}")
     else:
-        # Interest over time chart
         iot = tr.get("interest_over_time")
         if isinstance(iot, pd.DataFrame) and not iot.empty:
             st.write("**Interest over time**")
             st.line_chart(iot)
 
-        # Top regions dataframe
         by_region = tr.get("by_region")
         if isinstance(by_region, pd.DataFrame) and not by_region.empty:
             st.write("**Top regions (by interest)**")
             st.dataframe(by_region.head(25))
 
-            # Offer to append top regions to targeting
-            add_regions = st.checkbox("Append top regions to targeting", value=False)
-            if add_regions:
-                # Grab top 10 region names (index)
-                top_names = [str(idx) for idx in by_region.head(10).index.tolist()]
-                # Merge into final_targets textarea
-                merged = final_targets + [n for n in top_names if n not in final_targets]
-                final_targets[:] = merged  # mutate the list
-                # Re-render the textarea
-                st.success("Added top regions to targeting.")
-
-        # Related queries (suggestions)
         sugg = tr.get("related_suggestions", [])
         if sugg:
             st.write("**Related queries (Top + Rising)**")
             st.dataframe(pd.DataFrame({"Query": sugg[:50]}))
-
-            # Offer to append 10 related queries as Broad keywords
-            add_kw = st.checkbox("Append 10 related queries to keywords (as Broad)", value=False)
-            if add_kw:
-                base = plan.get("keywords", [])
-                extra = [f"+{q.replace(' ', ' +')}" for q in sugg[:10]]
-                plan["keywords"] = base + extra
-                st.success("Added related queries to keywords.")
 else:
-    st.info("Add trend seed terms or let the bot auto-pick from your plan keywords.")
+    st.info("Add trend seed terms in the sidebar or let the bot auto-pick from your keywords.")
+
 
 # -------------------------
 # Budget Allocation (example tables)
@@ -328,6 +229,131 @@ summary = {
     "competitor_states": ranked_states,
     "generated_at": ts
 }
+import os
+import sys
+from pathlib import Path
+from datetime import datetime
+import io
+import json
+
+import streamlit as st
+import pandas as pd
+from pytrends.request import TrendReq   # 👈 MOVE IMPORT HERE
+
+# your other imports/helpers like generate_strategy, _split_list, etc.
+
+# ============= GOOGLE TRENDS ENGINE =============
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_trends(seed_terms, geo="US", timeframe="today 12-m", gprop=""):
+    """
+    Google Trends wrapper for Sully's bot.
+    Returns:
+      - interest_over_time (df)
+      - by_region (df)
+      - related_suggestions (list)
+    """
+    if not seed_terms:
+        return {}
+
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360)
+        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo, gprop=gprop)
+
+        out = {}
+
+        # Interest Over Time
+        iot = pytrends.interest_over_time()
+        if isinstance(iot, pd.DataFrame) and not iot.empty:
+            if "isPartial" in iot.columns:
+                iot = iot.drop(columns=["isPartial"])
+            out["interest_over_time"] = iot
+
+        # Region Interest
+        reg = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
+        if isinstance(reg, pd.DataFrame) and not reg.empty:
+            first = seed_terms[0]
+            if first in reg.columns:
+                reg = reg.sort_values(first, ascending=False)
+            out["by_region"] = reg
+
+        # Related queries
+        rq = pytrends.related_queries()
+        suggestions = []
+        if isinstance(rq, dict):
+            for term, buckets in rq.items():
+                for key in ("top", "rising"):
+                    df = buckets.get(key)
+                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
+                        suggestions.extend(df["query"].dropna().astype(str).tolist())
+
+        # De-dupe suggestions
+        seen = set()
+        uniq = []
+        for s in suggestions:
+            if s not in seen:
+                seen.add(s)
+                uniq.append(s)
+        out["related_suggestions"] = uniq[:100]
+
+        return out
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    """
+    Google Trends wrapper for Sully's bot.
+    Returns:
+      - interest_over_time (df)
+      - by_region (df)
+      - related_suggestions (list)
+    """
+    if not seed_terms:
+        return {}
+
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360)
+        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo, gprop=gprop)
+
+        out = {}
+
+        # Interest Over Time
+        iot = pytrends.interest_over_time()
+        if isinstance(iot, pd.DataFrame) and not iot.empty:
+            if "isPartial" in iot.columns:
+                iot = iot.drop(columns=["isPartial"])
+            out["interest_over_time"] = iot
+
+        # Region Interest
+        reg = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
+        if isinstance(reg, pd.DataFrame) and not reg.empty:
+            first = seed_terms[0]
+            if first in reg.columns:
+                reg = reg.sort_values(first, ascending=False)
+            out["by_region"] = reg
+
+        # Related Queries
+        rq = pytrends.related_queries()
+        suggestions = []
+        if isinstance(rq, dict):
+            for term, buckets in rq.items():
+                for key in ("top", "rising"):
+                    df = buckets.get(key)
+                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
+                        suggestions.extend(df["query"].dropna().astype(str).tolist())
+
+        # dedupe
+        uniq = []
+        seen = set()
+        for q in suggestions:
+            if q not in seen:
+                seen.add(q)
+                uniq.append(q)
+        out["related_suggestions"] = uniq[:100]
+
+        return out
+
+    except Exception as e:
+        return {"error": str(e)}
 
 # JSON export
 json_buf = io.StringIO()
@@ -336,8 +362,7 @@ st.download_button(
     label="⬇️ Download Campaign Plan (JSON)",
     data=json_buf.getvalue(),
     file_name=export_name,
-    mime="application/json"
-)
+    mime="application/json"\
 
 # Optional: Locations CSV export for Ads/Editor
 st.markdown("#### Export: Google Ads Locations CSV")
