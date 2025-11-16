@@ -363,7 +363,7 @@ st.download_button(
     data=json_buf.getvalue(),
     file_name=export_name,
     mime="application/json"\
-
+)
 # Optional: Locations CSV export for Ads/Editor
 st.markdown("#### Export: Google Ads Locations CSV")
 loc_rows = [{"Target": t, "Match Type": "Location Name"} for t in final_targets]
