@@ -4,3 +4,4 @@ pandas
 numpy
 requests
 python-dateutil
+beautifulsoup4==4.12.3
