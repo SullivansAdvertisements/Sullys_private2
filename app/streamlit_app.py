@@ -1,9 +1,8 @@
 # ==========================
-# Sully's Marketing Bot
-# Full replacement: light theme, logo header, multi-platform estimates, Trends
+# Sullivan's Advertisements – Marketing Bot
+# Clean light-theme Streamlit app with logo, ROI + reach estimator
 # ==========================
 
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -13,472 +12,364 @@ import json
 import streamlit as st
 import pandas as pd
 
-# Try to import Google Trends, but don't crash if missing
+# Optional: Google Trends (pytrends)
 try:
     from pytrends.request import TrendReq
     HAS_TRENDS = True
 except ImportError:
     HAS_TRENDS = False
 
-# ---- Make repo root importable so we can import /bot/core.py ----
+# Optional: connect to your old strategy engine if available
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
-
-# Import your strategy generator
-# Expecting bot/core.py to have: def generate_strategy(niche, budget, goal, geo, competitors) -> dict
-from bot.core import generate_strategy  # type: ignore
-
-
-# ==========================
-# Basic helpers
-# ==========================
-
-LOGO_PATH = Path(__file__).with_name("sullivan_logo.png")
-
-
-def _split_list(raw: str):
-    """Split comma/newline-separated text into a clean unique list."""
-    if not raw:
-        return []
-    parts = []
-    for chunk in raw.replace(",", "\n").split("\n"):
-        v = chunk.strip()
-        if v:
-            parts.append(v)
-    # Keep order but unique
-    seen = set()
-    out = []
-    for p in parts:
-        if p not in seen:
-            seen.add(p)
-            out.append(p)
-    return out
-
-
-def estimate_platform_metrics(platform: str, goal: str, budget: float, avg_value: float):
-    """
-    Very rough heuristic estimator for reach, clicks, conversions, and ROI.
-    These are NOT live platform numbers – just planning estimates.
-    """
-
-    # Baseline CPM and CTR per platform (very rough typical ranges)
-    platform_cpm = {
-        "Meta": 8.0,
-        "Google": 12.0,  # assume search/display mix
-        "TikTok": 6.0,
-        "X (Twitter)": 7.0,
-    }
-
-    platform_ctr = {
-        "Meta": 0.015,
-        "Google": 0.03,
-        "TikTok": 0.012,
-        "X (Twitter)": 0.01,
-    }
-
-    # Conversion rate multipliers by goal
-    # awareness < traffic/engagement < conversion/sales
-    goal_cvr = {
-        "awareness": 0.002,
-        "traffic": 0.004,
-        "leads": 0.015,
-        "conversions": 0.02,
-        "sales": 0.02,
-    }
-
-    # Normalize goal key
-    gkey = goal.lower()
-    if gkey not in goal_cvr:
-        gkey = "conversions"
-
-    cpm = platform_cpm.get(platform, 10.0)
-    ctr = platform_ctr.get(platform, 0.015)
-    base_cvr = goal_cvr[gkey]
-
-    # Impressions, reach, clicks
-    impressions = (budget / cpm) * 1000.0
-    # For planning, treat reach ~ 0.7 * impressions (frequency ~1.4)
-    reach = impressions * 0.7
-    clicks = impressions * ctr
-    conversions = clicks * base_cvr
-
-    revenue = conversions * avg_value
-    profit = revenue - budget
-    roi_pct = (profit / budget * 100.0) if budget > 0 else 0.0
-
-    return {
-        "platform": platform,
-        "goal": gkey,
-        "budget": budget,
-        "impressions": round(impressions),
-        "reach": round(reach),
-        "clicks": round(clicks),
-        "conversions": round(conversions, 2),
-        "revenue": round(revenue, 2),
-        "profit": round(profit, 2),
-        "roi_pct": round(roi_pct, 1),
-    }
-
+try:
+    from bot.core import generate_strategy  # type: ignore
+except Exception:
+    generate_strategy = None  # app still works without it
 
 # ==========================
-# Google Trends helper
+# Page config (light look)
 # ==========================
+st.set_page_config(
+    page_title="Sullivan's Marketing Bot",
+    page_icon="📊",
+    layout="wide",
+)
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_trends(seed_terms, geo="US", timeframe="today 12-m", gprop=""):
-    """
-    Google Trends wrapper for Sully's bot.
-    Returns dict with (may be empty if Trends not available):
-      - interest_over_time (DataFrame)
-      - by_region (DataFrame)
-      - related_suggestions (list[str])
-    """
-    if not HAS_TRENDS or not seed_terms:
-        return {}
-
-    try:
-        pytrends = TrendReq(hl="en-US", tz=360)
-        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo, gprop=gprop)
-
-        out = {}
-
-        # Interest Over Time
-        iot = pytrends.interest_over_time()
-        if isinstance(iot, pd.DataFrame) and not iot.empty:
-            if "isPartial" in iot.columns:
-                iot = iot.drop(columns=["isPartial"])
-            out["interest_over_time"] = iot
-
-        # Region Interest
-        reg = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
-        if isinstance(reg, pd.DataFrame) and not reg.empty:
-            first = seed_terms[0]
-            if first in reg.columns:
-                reg = reg.sort_values(first, ascending=False)
-            out["by_region"] = reg
-
-        # Related Queries
-        rq = pytrends.related_queries()
-        suggestions = []
-        if isinstance(rq, dict):
-            for term, buckets in rq.items():
-                for key in ("top", "rising"):
-                    df = buckets.get(key)
-                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
-                        suggestions.extend(df["query"].dropna().astype(str).tolist())
-
-        # De-dupe
-        seen = set()
-        uniq = []
-        for s in suggestions:
-            if s not in seen:
-                seen.add(s)
-                uniq.append(s)
-        out["related_suggestions"] = uniq[:100]
-
-        return out
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# ==========================
-# Streamlit page config & style
-# ==========================
-
-st.set_page_config(page_title="Sully's Marketing Bot", page_icon="💼", layout="wide")
-
-# Light theme / readable font
+# Small CSS tweak to keep things light and readable
 st.markdown(
     """
     <style>
     .stApp {
-        background-color: #f5f5f5;
+        background-color: #f7f7f9;
     }
-    html, body, [class*="css"] {
-        color: #111111;
+    .main > div {
+        padding-top: 0rem;
+    }
+    h1, h2, h3, h4, h5, h6, p, span, label {
+        color: #123 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-size: 15px;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-
-# ==========================
-# Sidebar inputs
-# ==========================
-
-with st.sidebar:
-    st.header("Inputs")
-
-    niche = st.selectbox("Niche", ["clothing", "consignment", "musician", "homecare"])
-    budget = st.number_input("Monthly Budget (USD)", min_value=100.0, value=2500.0, step=50.0)
-    avg_value = st.number_input("Avg Conversion Value (USD)", min_value=1.0, value=80.0, step=5.0)
-
-    goal = st.selectbox(
-        "Primary Goal",
-        ["awareness", "traffic", "leads", "conversions", "sales"],
-        index=3,
-    )
-
-    st.markdown("### Location mode")
-    loc_mode = st.radio(
-        "Choose how to target",
-        ["Country", "States", "Cities", "ZIPs", "Radius"],
-        horizontal=True,
-    )
-
-    country = st.text_input("Country (ISO/name)", value="US")
-
-    states_raw = ""
-    cities_raw = ""
-    zips_raw = ""
-    radius_center = ""
-    radius_miles = 15
-
-    if loc_mode == "States":
-        st.caption("Enter states separated by commas or new lines")
-        states_raw = st.text_area("States list", value="")
-    elif loc_mode == "Cities":
-        st.caption("Enter city names (commas or new lines)")
-        cities_raw = st.text_area("Cities list", value="")
-    elif loc_mode == "ZIPs":
-        st.caption("Enter ZIPs (commas or new lines)")
-        zips_raw = st.text_area("ZIP list", value="")
-    elif loc_mode == "Radius":
-        radius_center = st.text_input("Center address (e.g. city or full address)")
-        radius_miles = st.number_input("Radius (miles)", min_value=1, max_value=100, value=15)
-
-    st.markdown("### Competitor URLs")
-    comp_text = st.text_area(
-        "One per line",
-        placeholder="https://example.com\nhttps://competitor.com/locations",
-    )
-    competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
-
-    st.markdown("### Google Trends")
-    use_trends = st.checkbox("Use Google Trends insights", value=True)
-    timeframe = st.selectbox(
-        "Trends timeframe",
-        ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
-        index=2,
-    )
-    gprop_choice = st.selectbox(
-        "Search Source",
-        ["(Web)", "news", "images", "youtube", "froogle"],
-        index=0,
-    )
-    gprop = "" if gprop_choice == "(Web)" else gprop_choice
-    trend_seeds_raw = st.text_area(
-        "Trend seed terms (comma/newline)",
-        placeholder="streetwear, trap music, caregiver services",
-        value="",
-    )
-
-    run = st.button("Generate Plan", type="primary")
-
-
-# ==========================
-# Build strategy plan
-# ==========================
-
-if run:
-    # Derive human-readable geo
-    if loc_mode == "Country":
-        geo = country
-    elif loc_mode == "States":
-        selected_states = _split_list(states_raw)
-        geo = ", ".join(selected_states) if selected_states else country
-    elif loc_mode == "Cities":
-        selected_cities = _split_list(cities_raw)
-        geo = ", ".join(selected_cities) if selected_cities else country
-    elif loc_mode == "ZIPs":
-        selected_zips = _split_list(zips_raw)
-        selected_zips = [z.strip()[:5] if z and z[0].isdigit() else z for z in selected_zips]
-        geo = ", ".join(selected_zips) if selected_zips else country
-    else:  # Radius
-        geo = f"{radius_miles}mi around {radius_center}" if radius_center else country
-
-    plan = generate_strategy(niche, float(budget), goal, geo, competitors)
-    st.success("✅ Plan generated!")
-else:
-    # Safe empty default
-    geo = country
-    plan = {"insights": {}, "keywords": []}
-
-# Rebuild target lists for main section
-selected_states = _split_list(states_raw) if loc_mode == "States" else []
-selected_cities = _split_list(cities_raw) if loc_mode == "Cities" else []
-selected_zips = _split_list(zips_raw) if loc_mode == "ZIPs" else []
-
-
 # ==========================
 # Header with logo
 # ==========================
 
-header_cols = st.columns([1, 3])
+logo_path = Path(__file__).with_name("sullivans_logo.png")
+
+header_cols = st.columns([1, 4])
 with header_cols[0]:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), caption="", use_column_width=False, width=180)
+    if logo_path.exists():
+        st.image(str(logo_path), use_column_width=True)
+    else:
+        st.write("🔺 Upload `sullivans_logo.png` next to this file.")
+
 with header_cols[1]:
-    st.title("Sully's Marketing Bot")
-    st.write(
-        f"Smart planning for **{niche}** campaigns in **{geo}** with a monthly budget of "
-        f"**${budget:,.0f}** and goal **{goal.title()}**."
+    st.title("Sullivan's Marketing Bot")
+    st.caption("Planning & estimating for Google/YouTube, Meta, TikTok, and X (Twitter).")
+
+
+# ==========================
+# Sidebar – inputs
+# ==========================
+with st.sidebar:
+    st.header("Campaign Inputs")
+
+    niche = st.selectbox(
+        "Business type",
+        ["Clothing brand", "Consignment store", "Musician / Artist", "Home care (elderly / special needs)"],
     )
 
-
-# ==========================
-# Target Locations
-# ==========================
-
-st.subheader("🎯 Target Locations")
-
-ins = plan.get("insights", {})
-ranked_cities = ins.get("cities_ranked", []) or []
-ranked_states = ins.get("states_ranked", []) or []
-ranked_zips = ins.get("zips_ranked", []) or []
-
-if loc_mode == "Country":
-    chosen_locs = [country]
-elif loc_mode == "States":
-    chosen_locs = selected_states or ranked_states[:10]
-elif loc_mode == "Cities":
-    chosen_locs = selected_cities or ranked_cities[:15]
-elif loc_mode == "ZIPs":
-    chosen_locs = selected_zips or ranked_zips[:50]
-else:
-    chosen_locs = [f"RADIUS {radius_miles}mi around {radius_center}"] if radius_center else [country]
-
-chosen = st.text_area("Final targets (edit before export)", value="\n".join(chosen_locs))
-final_targets = [t.strip() for t in chosen.split("\n") if t.strip()]
-
-st.caption("You can paste these into Google Ads / Meta location targeting or Ads Editor bulk tools.")
-
-loc_cols = st.columns(2)
-with loc_cols[0]:
-    st.write("**Keyword ideas**")
-    st.dataframe(pd.DataFrame({"Keywords": plan.get("keywords", [])}))
-with loc_cols[1]:
-    st.write("**Top competitor locations**")
-    st.dataframe(
-        pd.DataFrame(
-            {
-                "Cities": ranked_cities[:20] if ranked_cities else [],
-                "States": ranked_states[:20] if ranked_states else [],
-            }
-        )
+    primary_goal = st.selectbox(
+        "Primary goal",
+        ["Awareness", "Traffic", "Leads", "Sales"],
     )
 
+    monthly_budget = st.number_input(
+        "Monthly ad budget (USD)",
+        min_value=100.0,
+        value=2500.0,
+        step=100.0,
+    )
+
+    avg_order_value = st.number_input(
+        "Average revenue per conversion (USD)",
+        min_value=5.0,
+        value=80.0,
+        step=5.0,
+    )
+
+    country = st.text_input("Main country / market", value="US")
+
+    st.markdown("---")
+    st.subheader("Google Trends (optional)")
+
+    use_trends = st.checkbox("Use Google Trends insights", value=True)
+    trend_seed_text = st.text_area(
+        "Trend seed keywords (comma or new line)",
+        placeholder="streetwear, vintage clothing, trap beats, caregiver services",
+    )
+    trends_timeframe = st.selectbox(
+        "Trends timeframe",
+        ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
+        index=2,
+    )
+
+    st.markdown("---")
+    st.subheader("Competitor URLs (optional)")
+    comp_text = st.text_area(
+        "One URL per line",
+        placeholder="https://competitor1.com\nhttps://competitor2.com",
+    )
+    competitors = [c.strip() for c in comp_text.splitlines() if c.strip()]
+
+    st.markdown("---")
+    run_button = st.button("🚀 Run Estimator", type="primary")
+
 
 # ==========================
-# Multi-platform estimates (Meta, Google, TikTok, X)
+# Helper functions
 # ==========================
 
-st.subheader("📊 Multi-Platform Reach, Conversions & ROI (Estimates)")
-
-platforms = ["Meta", "Google", "TikTok", "X (Twitter)"]
-rows = []
-for p in platforms:
-    rows.append(estimate_platform_metrics(p, goal, float(budget) / len(platforms), float(avg_value)))
-
-df_est = pd.DataFrame(rows)
-st.dataframe(
-    df_est[["platform", "budget", "impressions", "reach", "clicks", "conversions", "revenue", "profit", "roi_pct"]],
-    use_container_width=True,
-)
-
-st.caption(
-    "These numbers are rough planning estimates using heuristic CPM/CTR/CVR values per platform — "
-    "they are not live data from Meta/Google/TikTok/X."
-)
-
-
-# ==========================
-# Google Trends Insights
-# ==========================
-
-st.subheader("📈 Google Trends Insights")
-
-tr_seed_terms = []
-if trend_seeds_raw.strip():
-    for chunk in trend_seeds_raw.replace(",", "\n").split("\n"):
+def parse_trend_seeds(raw: str) -> list[str]:
+    if not raw:
+        return []
+    parts = []
+    for chunk in raw.replace(",", "\n").splitlines():
         v = chunk.strip()
         if v:
-            tr_seed_terms.append(v)
-else:
-    # Auto-pick from plan keywords
-    auto = plan.get("keywords", [])
-    for k in auto:
-        k = str(k)
-        if 1 <= len(k.split()) <= 4:
-            tr_seed_terms.append(k)
-        if len(tr_seed_terms) >= 5:
-            break
+            parts.append(v)
+    # dedupe while preserving order
+    seen = set()
+    uniq = []
+    for p in parts:
+        if p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq[:5]  # keep it small for Trends
 
-if use_trends and HAS_TRENDS and tr_seed_terms:
-    geo_for_trends = country if country else "US"
-    tr = get_trends(tr_seed_terms, geo=geo_for_trends, timeframe=timeframe, gprop=gprop)
 
-    if tr.get("error"):
-        st.warning(f"Trends error: {tr['error']}")
-    else:
-        iot = tr.get("interest_over_time")
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_trends(seed_terms: list[str], geo: str, timeframe: str):
+    """Small wrapper around pytrends for interest + related queries."""
+    if not HAS_TRENDS or not seed_terms:
+        return {}
+
+    try:
+        pytrends = TrendReq(hl="en-US", tz=360)
+        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo or "")
+        out: dict = {}
+
+        iot = pytrends.interest_over_time()
         if isinstance(iot, pd.DataFrame) and not iot.empty:
-            st.write("**Interest Over Time**")
-            st.line_chart(iot)
+            if "isPartial" in iot.columns:
+                iot = iot.drop(columns=["isPartial"])
+            out["interest_over_time"] = iot
 
-        by_region = tr.get("by_region")
-        if isinstance(by_region, pd.DataFrame) and not by_region.empty:
-            st.write("**Top Regions by Interest**")
-            st.dataframe(by_region.head(25))
+        related = pytrends.related_queries()
+        suggestions = []
+        if isinstance(related, dict):
+            for term, buckets in related.items():
+                for key in ("top", "rising"):
+                    df = buckets.get(key)
+                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
+                        suggestions.extend(df["query"].dropna().astype(str).tolist())
+        # dedupe suggestions
+        seen = set()
+        uniq = []
+        for s in suggestions:
+            if s not in seen:
+                seen.add(s)
+                uniq.append(s)
+        out["related_suggestions"] = uniq[:50]
+        return out
+    except Exception as e:
+        return {"error": str(e)}
 
-        sugg = tr.get("related_suggestions", [])
-        if sugg:
-            st.write("**Related Queries (Top + Rising)**")
-            st.dataframe(pd.DataFrame({"Query": sugg[:50]}))
-else:
-    if not HAS_TRENDS:
-        st.info("pytrends is not installed – install it in requirements.txt to enable Google Trends.")
-    else:
-        st.info("Add trend seed terms in the sidebar or let the bot auto-pick from your plan keywords.")
+
+def estimate_performance(goal: str, budget: float, aov: float) -> pd.DataFrame:
+    """
+    Very simplified estimator using typical CPM/CPC and conversion assumptions.
+    These are NOT live platform numbers – just planning heuristics.
+    """
+    # budget allocation per platform
+    allocation = {
+        "Google / YouTube": 0.40,
+        "Meta (Facebook / IG)": 0.35,
+        "TikTok": 0.15,
+        "X (Twitter)": 0.10,
+    }
+
+    # baseline channel metrics by primary goal
+    # all values are "reasonable defaults", change as needed
+    assumptions = {
+        "Awareness": {
+            "Google / YouTube": {"cpm": 12.0, "ctr": 0.01, "conv_rate": 0.002},
+            "Meta (Facebook / IG)": {"cpm": 8.0, "ctr": 0.012, "conv_rate": 0.002},
+            "TikTok": {"cpm": 6.0, "ctr": 0.013, "conv_rate": 0.0015},
+            "X (Twitter)": {"cpm": 7.0, "ctr": 0.009, "conv_rate": 0.001},
+        },
+        "Traffic": {
+            "Google / YouTube": {"cpc": 1.2, "conv_rate": 0.02},
+            "Meta (Facebook / IG)": {"cpc": 0.9, "conv_rate": 0.018},
+            "TikTok": {"cpc": 0.7, "conv_rate": 0.015},
+            "X (Twitter)": {"cpc": 0.8, "conv_rate": 0.012},
+        },
+        "Leads": {
+            "Google / YouTube": {"cpc": 1.8, "conv_rate": 0.10},
+            "Meta (Facebook / IG)": {"cpc": 1.5, "conv_rate": 0.09},
+            "TikTok": {"cpc": 1.2, "conv_rate": 0.08},
+            "X (Twitter)": {"cpc": 1.3, "conv_rate": 0.07},
+        },
+        "Sales": {
+            "Google / YouTube": {"cpc": 2.0, "conv_rate": 0.04},
+            "Meta (Facebook / IG)": {"cpc": 1.7, "conv_rate": 0.035},
+            "TikTok": {"cpc": 1.4, "conv_rate": 0.03},
+            "X (Twitter)": {"cpc": 1.5, "conv_rate": 0.025},
+        },
+    }
+
+    rows = []
+
+    for platform, share in allocation.items():
+        spend = budget * share
+        metrics = assumptions[goal][platform]
+
+        if goal == "Awareness":
+            cpm = metrics["cpm"]           # cost per 1000 impressions
+            ctr = metrics["ctr"]           # click-through rate
+            conv_rate = metrics["conv_rate"]
+
+            impressions = (spend / cpm) * 1000
+            clicks = impressions * ctr
+            conversions = clicks * conv_rate
+
+        else:
+            cpc = metrics["cpc"]
+            conv_rate = metrics["conv_rate"]
+
+            clicks = spend / cpc if cpc else 0
+            impressions = clicks * 40      # crude guess (25–40 views per click)
+            conversions = clicks * conv_rate
+
+        est_revenue = conversions * aov
+        roi = ((est_revenue - spend) / spend * 100) if spend > 0 else 0.0
+
+        rows.append(
+            {
+                "Platform": platform,
+                "Budget (USD)": round(spend, 2),
+                "Est. Impressions": int(impressions),
+                "Est. Clicks": int(clicks),
+                "Est. Conversions": round(conversions, 1),
+                "Est. Revenue (USD)": round(est_revenue, 2),
+                "Est. ROI %": round(roi, 1),
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    return df
 
 
 # ==========================
-# Campaign Summary & Export (Plan + ROI overview)
+# Main body
 # ==========================
 
-st.subheader("🧾 Campaign Summary & Export")
-
-ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-export_name = f"campaign_export_{ts}.json"
-
-summary = {
-    "niche": niche,
-    "budget_usd": float(budget),
-    "avg_conversion_value": float(avg_value),
-    "goal": goal,
-    "geo": geo,
-    "locations": final_targets,
-    "keywords": plan.get("keywords", []),
-    "platform_estimates": df_est.to_dict(orient="records"),
-    "generated_at_utc": ts,
-}
-
-json_buf = io.StringIO()
-json.dump(summary, json_buf, indent=2)
-
-st.download_button(
-    label="⬇️ Download Campaign Plan (JSON)",
-    data=json_buf.getvalue(),
-    file_name=export_name,
-    mime="application/json",
+st.markdown("### Overview")
+st.write(
+    f"""
+    **Niche:** {niche}  
+    **Goal:** {primary_goal}  
+    **Monthly Budget:** ${monthly_budget:,.0f}  
+    **Average Value per Conversion:** ${avg_order_value:,.2f}  
+    **Market:** {country}
+    """
 )
 
+results_df: pd.DataFrame | None = None
+trend_info: dict | None = None
+
+if run_button:
+    # 1) Performance estimation
+    results_df = estimate_performance(primary_goal, monthly_budget, avg_order_value)
+
+    st.subheader("📊 Estimated Reach, Conversions & ROI by Platform")
+    st.dataframe(results_df, use_container_width=True)
+
+    total_spend = results_df["Budget (USD)"].sum()
+    total_revenue = results_df["Est. Revenue (USD)"].sum()
+    total_conversions = results_df["Est. Conversions"].sum()
+    blended_roi = (total_revenue - total_spend) / total_spend * 100 if total_spend > 0 else 0
+
+    kpi_cols = st.columns(4)
+    kpi_cols[0].metric("Total spend (est.)", f"${total_spend:,.0f}")
+    kpi_cols[1].metric("Total conversions (est.)", f"{total_conversions:,.1f}")
+    kpi_cols[2].metric("Total revenue (est.)", f"${total_revenue:,.0f}")
+    kpi_cols[3].metric("Blended ROI (est.)", f"{blended_roi:,.1f}%")
+
+    st.markdown("#### Platform ROI comparison")
+    roi_chart_df = results_df.set_index("Platform")[["Est. ROI %"]]
+    st.bar_chart(roi_chart_df)
+
+    # 2) Optional Google Trends
+    if use_trends and HAS_TRENDS:
+        st.subheader("📈 Google Trends Insights")
+
+        seeds = parse_trend_seeds(trend_seed_text)
+        if not seeds:
+            st.info("Enter 1–5 trend seed keywords in the sidebar to pull Google Trends data.")
+        else:
+            trend_info = fetch_trends(seeds, country, trends_timeframe)
+
+            if trend_info.get("error"):
+                st.warning(f"Trends error (often 429 = too many requests): {trend_info['error']}")
+            else:
+                iot = trend_info.get("interest_over_time")
+                if isinstance(iot, pd.DataFrame) and not iot.empty:
+                    st.write("**Interest over time**")
+                    st.line_chart(iot)
+
+                sugg = trend_info.get("related_suggestions", [])
+                if sugg:
+                    st.write("**Related search queries (top + rising)**")
+                    st.dataframe(pd.DataFrame({"Query": sugg}))
+
+                    st.caption(
+                        "Use these ideas to expand your keyword lists for Google, Meta interests, "
+                        "TikTok interests/hashtags, and X (Twitter) topics."
+                    )
+
+    elif use_trends and not HAS_TRENDS:
+        st.warning("pytrends is not installed. Add `pytrends==4.9.2` to requirements.txt to enable Trends.")
+
+    # 3) Optional: call your advanced generator if available
+    if generate_strategy is not None and competitors:
+        st.subheader("🧠 Extra: Strategy notes from competitor URLs")
+        try:
+            # geo string is just the country here
+            plan = generate_strategy(
+                niche=niche,
+                budget=float(monthly_budget),
+                goal=primary_goal,
+                geo=country,
+                competitors=competitors,
+            )
+            # we don't rely on its schema – just show whatever summary it returns
+            plan_json = json.dumps(plan, indent=2)
+            st.code(plan_json, language="json")
+        except Exception as e:
+            st.warning(f"Strategy engine error (bot.core): {e}")
+
+else:
+    st.info("Set your inputs on the left and click **🚀 Run Estimator** to see reach, conversions, and ROI per platform.")
+
 st.markdown("---")
-st.info(
-    "Use this bot as a planning tool: estimates are directional only and not financial advice. "
-    "Always verify performance with real platform data."
+st.caption(
+    "All performance numbers shown are **estimates** based on generic CPM/CPC and conversion-rate assumptions. "
+    "Always validate with real campaign data from Google Ads, Meta, TikTok, and X."
 )
