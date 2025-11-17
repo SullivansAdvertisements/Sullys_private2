@@ -571,9 +571,3 @@ st.download_button(
     file_name="google_ads_locations.csv",
     mime="text/csv",
 )
-
-st.markdown("---")
-st.info(
-    "Use the JSON with your Google Ads / automation scripts, "
-    "and the CSV for bulk location adds in Google Ads or Ads Editor."
-)
