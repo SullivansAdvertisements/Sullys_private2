@@ -14,6 +14,15 @@ from typing import Dict, List
 
 import pandas as pd
 import streamlit as st
+# ==========================================
+# Load environment variables (Meta, TikTok, Google, etc.)
+# ==========================================
+from dotenv import load_dotenv
+load_dotenv()
+
+META_TOKEN = os.getenv("META_SYSTEM_USER_TOKEN")
+META_BM_ID = os.getenv("META_BUSINESS_ID")
+META_AD_ACCOUNT = os.getenv("META_AD_ACCOUNT_ID")
 
 # ---------- CONFIG ----------
 APP_TITLE = "Sully's Mini Media Planner"
