@@ -1,94 +1,46 @@
 # ==========================
 # Sully's Mini Media Planner
-# Brand new, light theme, logo on top
+# Light theme, logo header, no background
 # ==========================
 
 import os
-from pathlib import Path
 from datetime import datetime
-import io
-import json
 
 import streamlit as st
 import pandas as pd
 
-# --- Optional: Google Trends (won't crash if missing) ---
-try:
-    from pytrends.request import TrendReq
-    HAS_TRENDS = True
-except ImportError:
-    HAS_TRENDS = False
-
-# ==========================
-# Basic config + styling
-# ==========================
-
+# --------------------------
+# PAGE CONFIG (light feel)
+# --------------------------
 st.set_page_config(
-    page_title="Sully's Mini Media Planner",
-    page_icon="💼",
-    layout="wide"
+    page_title="Sully's Marketing Bot",
+    page_icon="📊",
+    layout="wide",
 )
 
-def set_light_theme():
-    """Force a light, clean look and readable font."""
+# --------------------------
+# LOGO HEADER (top, no bg)
+# --------------------------
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "sullivans_logo.png")
+
+header_cols = st.columns([1, 4])
+with header_cols[0]:
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, use_column_width=True)
+with header_cols[1]:
     st.markdown(
         """
-        <style>
-        .stApp {
-            background-color: #f7f7fb;
-            color: #111111;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
-        .block-container {
-            padding-top: 1.5rem;
-            padding-bottom: 3rem;
-            max-width: 1200px;
-        }
-        h1, h2, h3 {
-            color: #111111;
-        }
-        .platform-card {
-            border-radius: 12px;
-            padding: 1rem 1.25rem;
-            border: 1px solid #e0e0ea;
-            background: #ffffff;
-            margin-bottom: 0.75rem;
-        }
-        </style>
+        # Sully's Mini Media Planner  
+        _Music · Clothing Brands · Local Home Care_
         """,
         unsafe_allow_html=True,
     )
 
-set_light_theme()
-
-# ==========================
-# Logo helper
-# ==========================
-
-LOGO_PATH = Path(__file__).with_name("sullivans_logo.png")
-
-def show_header():
-    col_logo, col_title = st.columns([1, 4])
-    with col_logo:
-        if LOGO_PATH.exists():
-            st.image(str(LOGO_PATH), caption="", use_column_width=True)
-        else:
-            st.write("🧩 Upload `sullivans_logo.png` into the `app/` folder to see your logo here.")
-    with col_title:
-        st.markdown("### Sully's Mini Media Planner")
-        st.markdown(
-            "Plan **multi-platform campaigns** for Music, Clothing Brands, and Local Home Care "
-            "with estimated reach, conversions, and ROI."
-        )
-
-show_header()
-
 st.markdown("---")
 
-# ==========================
-# Helpers: media planner "brain"
-# ==========================
-
+# --------------------------
+# HELPER: simple estimation brain
+# --------------------------
 PLATFORMS = [
     "Meta (FB + IG)",
     "TikTok Ads",
@@ -99,438 +51,267 @@ PLATFORMS = [
     "Snapchat Ads",
 ]
 
-GOALS = ["sales", "conversions", "leads", "awareness", "traffic"]
+DEFAULT_METRICS = {
+    # platform: {goal: {cpm, cpc, ctr, cvr}}
+    "Meta (FB + IG)": {
+        "awareness":   {"cpm": 6.0,  "cpc": 0.90, "ctr": 0.012, "cvr": 0.025},
+        "traffic":     {"cpm": 7.0,  "cpc": 0.75, "ctr": 0.018, "cvr": 0.030},
+        "conversions": {"cpm": 10.0, "cpc": 1.20, "ctr": 0.015, "cvr": 0.040},
+        "leads":       {"cpm": 9.0,  "cpc": 1.00, "ctr": 0.016, "cvr": 0.080},
+        "sales":       {"cpm": 11.0, "cpc": 1.40, "ctr": 0.014, "cvr": 0.045},
+    },
+    "TikTok Ads": {
+        "awareness":   {"cpm": 5.0,  "cpc": 0.80, "ctr": 0.014, "cvr": 0.018},
+        "traffic":     {"cpm": 6.0,  "cpc": 0.70, "ctr": 0.020, "cvr": 0.022},
+        "conversions": {"cpm": 9.0,  "cpc": 1.10, "ctr": 0.018, "cvr": 0.030},
+        "leads":       {"cpm": 8.0,  "cpc": 0.95, "ctr": 0.019, "cvr": 0.055},
+        "sales":       {"cpm": 10.0, "cpc": 1.30, "ctr": 0.017, "cvr": 0.035},
+    },
+    "Google Search": {
+        "awareness":   {"cpm": 8.0,  "cpc": 1.00, "ctr": 0.020, "cvr": 0.030},
+        "traffic":     {"cpm": 9.0,  "cpc": 1.20, "ctr": 0.030, "cvr": 0.035},
+        "conversions": {"cpm": 12.0, "cpc": 1.80, "ctr": 0.035, "cvr": 0.060},
+        "leads":       {"cpm": 11.0, "cpc": 1.60, "ctr": 0.033, "cvr": 0.080},
+        "sales":       {"cpm": 13.0, "cpc": 2.20, "ctr": 0.032, "cvr": 0.070},
+    },
+    "YouTube Ads": {
+        "awareness":   {"cpm": 5.5,  "cpc": 1.10, "ctr": 0.008, "cvr": 0.015},
+        "traffic":     {"cpm": 6.5,  "cpc": 0.95, "ctr": 0.012, "cvr": 0.020},
+        "conversions": {"cpm": 9.5,  "cpc": 1.40, "ctr": 0.014, "cvr": 0.030},
+        "leads":       {"cpm": 8.5,  "cpc": 1.20, "ctr": 0.013, "cvr": 0.045},
+        "sales":       {"cpm": 10.5, "cpc": 1.70, "ctr": 0.013, "cvr": 0.035},
+    },
+    "Spotify Ads": {
+        "awareness":   {"cpm": 7.0,  "cpc": 1.30, "ctr": 0.005, "cvr": 0.010},
+        "traffic":     {"cpm": 7.5,  "cpc": 1.10, "ctr": 0.007, "cvr": 0.015},
+        "conversions": {"cpm": 9.0,  "cpc": 1.60, "ctr": 0.008, "cvr": 0.020},
+        "leads":       {"cpm": 8.5,  "cpc": 1.40, "ctr": 0.008, "cvr": 0.030},
+        "sales":       {"cpm": 10.0, "cpc": 1.90, "ctr": 0.007, "cvr": 0.025},
+    },
+    "Twitter/X Ads": {
+        "awareness":   {"cpm": 5.5,  "cpc": 0.85, "ctr": 0.011, "cvr": 0.018},
+        "traffic":     {"cpm": 6.5,  "cpc": 0.80, "ctr": 0.016, "cvr": 0.022},
+        "conversions": {"cpm": 9.5,  "cpc": 1.30, "ctr": 0.017, "cvr": 0.030},
+        "leads":       {"cpm": 8.5,  "cpc": 1.10, "ctr": 0.017, "cvr": 0.050},
+        "sales":       {"cpm": 10.5, "cpc": 1.60, "ctr": 0.016, "cvr": 0.035},
+    },
+    "Snapchat Ads": {
+        "awareness":   {"cpm": 4.5,  "cpc": 0.75, "ctr": 0.014, "cvr": 0.016},
+        "traffic":     {"cpm": 5.5,  "cpc": 0.70, "ctr": 0.018, "cvr": 0.020},
+        "conversions": {"cpm": 8.5,  "cpc": 1.10, "ctr": 0.019, "cvr": 0.028},
+        "leads":       {"cpm": 7.5,  "cpc": 0.95, "ctr": 0.018, "cvr": 0.045},
+        "sales":       {"cpm": 9.5,  "cpc": 1.35, "ctr": 0.017, "cvr": 0.032},
+    },
+}
 
-def clean_goal(goal: str) -> str:
-    g = (goal or "").lower()
-    if g not in GOALS:
-        return "conversions"
-    return g
 
-def get_platform_params(goal: str):
+def estimate_platform(
+    platform: str,
+    goal: str,
+    budget: float,
+    avg_revenue_per_conv: float,
+):
     """
-    Rough heuristic parameters (CPM, CTR, CVR, budget share) for each platform.
-    All values are approximate and *not* real-time from platforms.
+    Very rough estimation function.
+    Returns dict with impressions, clicks, conversions, revenue, roi.
     """
-    goal = clean_goal(goal)
 
-    # Baseline by platform (CPM in $, CTR and CVR as fractions)
-    base = {
-        "Meta (FB + IG)":    {"share": 0.32, "cpm": 6.0,  "ctr": 0.017},
-        "TikTok Ads":        {"share": 0.18, "cpm": 5.0,  "ctr": 0.014},
-        "Google Search":     {"share": 0.22, "cpm": 9.0,  "ctr": 0.045},
-        "YouTube Ads":       {"share": 0.10, "cpm": 7.0,  "ctr": 0.012},
-        "Spotify Ads":       {"share": 0.05, "cpm": 8.0,  "ctr": 0.006},
-        "Twitter/X Ads":     {"share": 0.07, "cpm": 4.5,  "ctr": 0.010},
-        "Snapchat Ads":      {"share": 0.06, "cpm": 4.0,  "ctr": 0.012},
+    # Safety
+    goal_key = goal.lower()
+    if goal_key not in ["awareness", "traffic", "conversions", "leads", "sales"]:
+        goal_key = "conversions"
+
+    metrics = DEFAULT_METRICS.get(platform, {}).get(goal_key)
+    if not metrics:
+        return {
+            "Platform": platform,
+            "Goal": goal,
+            "Budget": budget,
+            "Impressions": 0,
+            "Clicks": 0,
+            "Conversions": 0,
+            "Revenue": 0,
+            "ROI %": 0,
+        }
+
+    cpm = metrics["cpm"]  # cost per 1000 impressions
+    cpc = metrics["cpc"]  # cost per click
+    ctr = metrics["ctr"]  # click-through rate
+    cvr = metrics["cvr"]  # conversion rate
+
+    # Awareness: calculate primarily via CPM
+    impressions = (budget / cpm) * 1000.0
+
+    # Traffic: approximate clicks from CTR & CPM vs CPC
+    # We'll just use CPC for simpler math:
+    clicks = budget / cpc if cpc > 0 else impressions * ctr
+
+    # Conversions: from clicks * CVR
+    conversions = clicks * cvr
+
+    # Revenue: conversions * ARPU
+    revenue = conversions * avg_revenue_per_conv
+
+    roi = 0
+    if budget > 0:
+        roi = (revenue - budget) / budget * 100.0
+
+    return {
+        "Platform": platform,
+        "Goal": goal,
+        "Budget": round(budget, 2),
+        "Impressions": int(impressions),
+        "Clicks": int(clicks),
+        "Conversions": round(conversions, 1),
+        "Revenue": round(revenue, 2),
+        "ROI %": round(roi, 1),
     }
 
-    # Goal-based conversion rates (CVR from click to conversion)
-    if goal in ["sales", "conversions"]:
-        cvr_level = {
-            "Meta (FB + IG)":    0.035,
-            "TikTok Ads":        0.028,
-            "Google Search":     0.050,
-            "YouTube Ads":       0.015,
-            "Spotify Ads":       0.012,
-            "Twitter/X Ads":     0.018,
-            "Snapchat Ads":      0.020,
-        }
-    elif goal == "leads":
-        cvr_level = {
-            "Meta (FB + IG)":    0.060,
-            "TikTok Ads":        0.045,
-            "Google Search":     0.080,
-            "YouTube Ads":       0.030,
-            "Spotify Ads":       0.020,
-            "Twitter/X Ads":     0.030,
-            "Snapchat Ads":      0.035,
-        }
-    elif goal == "awareness":
-        cvr_level = {
-            p: 0.005 for p in PLATFORMS
-        }
-    else:  # traffic
-        cvr_level = {
-            "Meta (FB + IG)":    0.015,
-            "TikTok Ads":        0.013,
-            "Google Search":     0.025,
-            "YouTube Ads":       0.008,
-            "Spotify Ads":       0.006,
-            "Twitter/X Ads":     0.009,
-            "Snapchat Ads":      0.010,
-        }
 
-    # Attach to base
-    for p in PLATFORMS:
-        base[p]["cvr"] = cvr_level.get(p, 0.01)
-
-    return base
-
-def estimate_performance(niche: str, goal: str, monthly_budget: float, avg_rev_per_conv: float):
-    """
-    Returns a dict: platform -> metrics (spend, impressions, clicks, conversions, revenue, roi)
-    """
-    goal = clean_goal(goal)
-    params = get_platform_params(goal)
-    result = {}
-
-    # Niche tweak: adjust performance a bit by category
-    niche = (niche or "").lower()
-    if "music" in niche:
-        niche_boost = {
-            "Spotify Ads": 1.25,
-            "TikTok Ads": 1.12,
-            "YouTube Ads": 1.08,
-        }
-    elif "clothing" in niche or "brand" in niche:
-        niche_boost = {
-            "Meta (FB + IG)": 1.12,
-            "TikTok Ads": 1.10,
-            "Snapchat Ads": 1.08,
-        }
-    elif "home" in niche or "care" in niche:
-        niche_boost = {
-            "Google Search": 1.18,
-            "Meta (FB + IG)": 1.10,
-        }
-    else:
-        niche_boost = {}
-
-    for p in PLATFORMS:
-        share = params[p]["share"]
-        cpm = params[p]["cpm"]
-        ctr = params[p]["ctr"]
-        cvr = params[p]["cvr"]
-
-        spend = monthly_budget * share
-        if spend <= 0 or cpm <= 0:
-            impressions = clicks = conversions = revenue = roi = 0.0
-        else:
-            impressions = (spend / cpm) * 1000.0
-            clicks = impressions * ctr
-            conversions = clicks * cvr
-
-            # niche-specific boost on conversions
-            boost = niche_boost.get(p, 1.0)
-            conversions *= boost
-
-            revenue = conversions * avg_rev_per_conv
-            roi = (revenue - spend) / spend if spend > 0 else 0.0
-
-        result[p] = {
-            "spend": spend,
-            "impressions": impressions,
-            "estimated_reach": impressions * 0.7,  # simple reach approximation
-            "clicks": clicks,
-            "conversions": conversions,
-            "revenue": revenue,
-            "roi": roi,
-        }
-
-    return result
-
-def build_platform_strategy(niche: str, goal: str, country_label: str):
-    """
-    High-level plan per platform: objective, audience notes, creative notes.
-    """
-    goal = clean_goal(goal)
-    strategies = {}
-
-    for p in PLATFORMS:
-        if p == "Meta (FB + IG)":
-            objective = {
-                "sales": "Sales / Conversions",
-                "conversions": "Sales / Conversions",
-                "leads": "Leads",
-                "awareness": "Reach",
-                "traffic": "Traffic",
-            }[goal]
-            audience = f"Custom + lookalikes based on {niche} engagers; {country_label} plus top cities."
-            creative = "Mixed: short videos, carousels, and UGC-style creatives tailored to niche."
-        elif p == "TikTok Ads":
-            objective = "Video Views" if goal in ["awareness", "traffic"] else "Conversions"
-            audience = f"Interest + behavior segments in {country_label} around {niche} trends."
-            creative = "Vertical, sound-on, trend-aware videos with clear hook in first 2 seconds."
-        elif p == "Google Search":
-            objective = "Leads" if goal in ["leads", "conversions", "sales"] else "Traffic"
-            audience = f"High intent queries for {niche}; geo-targeted to {country_label}."
-            creative = "Responsive search ads + strong site links, callouts, and extensions."
-        elif p == "YouTube Ads":
-            objective = "Awareness" if goal == "awareness" else "Conversions"
-            audience = f"In-market and custom intent audiences related to {niche} in {country_label}."
-            creative = "6–15s skippable/non-skippable video, strong branding and call-to-action."
-        elif p == "Spotify Ads":
-            objective = "Awareness"
-            audience = f"{niche} listeners / genres in {country_label}, day-parted to active listening."
-            creative = "30s audio spots + companion banners, clear CTA in script."
-        elif p == "Twitter/X Ads":
-            objective = "Engagement" if goal in ["awareness", "traffic"] else "Website Conversions"
-            audience = f"People following or engaging with {niche} topics and creators in {country_label}."
-            creative = "Short punchy copy, 1–2 strong hooks per tweet, optional video or image."
-        else:  # Snapchat Ads
-            objective = "Awareness" if goal == "awareness" else "Conversions"
-            audience = f"Younger audiences (13–34) interested in {niche} in {country_label}."
-            creative = "Full-screen vertical snaps, quick storytelling and swipe-up CTA."
-
-        strategies[p] = {
-            "objective": objective,
-            "audience": audience,
-            "creative": creative,
-        }
-
-    return strategies
-
-# ==========================
-# Optional: Google Trends helper
-# ==========================
-
-def get_trends(seed_terms, geo="US", timeframe="today 12-m", gprop=""):
-    """
-    Wraps pytrends; returns dict with:
-    - interest_over_time (DataFrame or None)
-    - by_region (DataFrame or None)
-    - related_suggestions (list)
-    """
-    if not HAS_TRENDS or not seed_terms:
-        return {"interest_over_time": None, "by_region": None, "related_suggestions": []}
-
-    try:
-        pytrends = TrendReq(hl="en-US", tz=360)
-        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo, gprop=gprop)
-
-        out = {"interest_over_time": None, "by_region": None, "related_suggestions": []}
-
-        iot = pytrends.interest_over_time()
-        if isinstance(iot, pd.DataFrame) and not iot.empty:
-            if "isPartial" in iot.columns:
-                iot = iot.drop(columns=["isPartial"])
-            out["interest_over_time"] = iot
-
-        reg = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
-        if isinstance(reg, pd.DataFrame) and not reg.empty:
-            out["by_region"] = reg
-
-        rq = pytrends.related_queries()
-        suggestions = []
-        if isinstance(rq, dict):
-            for term, buckets in rq.items():
-                for key in ("top", "rising"):
-                    df = buckets.get(key)
-                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
-                        suggestions.extend(df["query"].dropna().astype(str).tolist())
-        # de-dupe
-        seen = set()
-        uniq = []
-        for s in suggestions:
-            if s not in seen:
-                seen.add(s)
-                uniq.append(s)
-        out["related_suggestions"] = uniq[:100]
-
-        return out
-    except Exception as e:
-        # Handle rate limiting (429) or any error gracefully
-        return {"error": str(e), "interest_over_time": None, "by_region": None, "related_suggestions": []}
-
-# ==========================
-# Sidebar: Inputs
-# ==========================
-
+# --------------------------
+# SIDEBAR – User Inputs
+# --------------------------
 with st.sidebar:
-    st.subheader("Plan Inputs")
+    st.header("🧾 Campaign Inputs")
 
     niche = st.selectbox(
-        "Primary Niche",
-        ["Music", "Clothing Brand", "Local Home Care"],
-        index=0
+        "Niche",
+        ["Music / Artist", "Clothing Brand", "Local Home Care"],
     )
 
-    goal = st.selectbox(
+    primary_goal = st.selectbox(
         "Primary Goal",
-        ["sales", "conversions", "leads", "awareness", "traffic"],
-        index=2
+        ["Awareness", "Traffic", "Conversions", "Leads", "Sales"],
     )
 
-    monthly_budget = st.number_input("Monthly Ad Budget (USD)", min_value=100.0, value=2500.0, step=100.0)
+    monthly_budget = st.number_input(
+        "Total Monthly Budget (USD)",
+        min_value=100.0,
+        value=2500.0,
+        step=50.0,
+    )
 
-    avg_rev = st.number_input(
-        "Average revenue per conversion (USD)",
+    avg_revenue = st.number_input(
+        "Average Revenue Per Conversion (USD)",
         min_value=1.0,
         value=80.0,
         step=5.0,
-        help="If this is too low vs. your CPM/CVR, ROI can go negative."
+        help="E.g. average order value, value per lead, or per client",
     )
 
-    st.markdown("### Country / Region")
-    country_choice = st.selectbox(
-        "Main region",
-        ["Worldwide", "United States (US)", "Canada (CA)", "United Kingdom (GB)", "Custom"],
-        index=0
-    )
-    if country_choice == "Custom":
-        country_label = st.text_input("Custom country or region label", value="US / Global")
-    elif country_choice == "Worldwide":
-        country_label = "Worldwide"
-    else:
-        country_label = country_choice
+    st.markdown("### Targeting")
 
-    st.markdown("### Google Trends (optional)")
-    if HAS_TRENDS:
-        use_trends = st.checkbox("Use Google Trends insights", value=False)
-        trend_geo = st.text_input("Trends Geo (e.g. US, GB, WORLD)", value="WORLD")
-        trend_kw_raw = st.text_area(
-            "Trend seed keywords (comma or new lines)",
-            placeholder="trap beats, streetwear, home care services"
+    geo_mode = st.selectbox(
+        "Main Country / Geo",
+        ["Worldwide", "United States", "Custom"],
+    )
+
+    custom_geo = ""
+    if geo_mode == "Custom":
+        custom_geo = st.text_input(
+            "Enter main countries/regions",
+            placeholder="e.g. US, UK, CA, EU, or specific cities",
         )
-    else:
-        use_trends = False
-        trend_geo = "WORLD"
-        trend_kw_raw = ""
-        st.info("Install `pytrends` to enable Google Trends: `pip install pytrends`")
 
-    run = st.button("Generate Strategic Plan")
+    st.markdown("### Platform Allocation")
 
-# ==========================
-# Main: Results
-# ==========================
+    meta_share = st.slider("Meta (FB + IG) %", 0, 100, 35)
+    tiktok_share = st.slider("TikTok %", 0, 100, 20)
+    google_share = st.slider("Google Search %", 0, 100, 20)
+    youtube_share = st.slider("YouTube %", 0, 100, 10)
+    spotify_share = st.slider("Spotify %", 0, 100, 5)
+    twitter_share = st.slider("Twitter/X %", 0, 100, 5)
+    snap_share = st.slider("Snapchat %", 0, 100, 5)
+
+    total_share = (
+        meta_share
+        + tiktok_share
+        + google_share
+        + youtube_share
+        + spotify_share
+        + twitter_share
+        + snap_share
+    )
+
+    if total_share == 0:
+        st.warning("Set at least one platform above 0%.")
+    elif total_share != 100:
+        st.info(f"Total allocation = {total_share}%. It will be normalized automatically.")
+
+    run = st.button("🚀 Generate Plan")
+
+
+# --------------------------
+# MAIN LAYOUT
+# --------------------------
+st.subheader("🎯 Strategy Overview")
+
+# Short narrative
+geo_text = "Worldwide" if geo_mode == "Worldwide" else geo_mode
+if geo_mode == "Custom" and custom_geo.strip():
+    geo_text = custom_geo
+
+st.markdown(
+    f"""
+**Niche:** `{niche}`  
+**Primary Goal:** `{primary_goal}`  
+**Geo Focus:** `{geo_text}`  
+**Monthly Budget:** `${monthly_budget:,.0f}`  
+**Avg Revenue / Conversion:** `${avg_revenue:,.2f}`  
+"""
+)
 
 if not run:
-    st.info("👈 Set your niche, goal, budget, and then click **Generate Strategic Plan**.")
-else:
-    # 1) Calculate estimates
-    perf = estimate_performance(niche, goal, monthly_budget, avg_rev)
-    strat = build_platform_strategy(niche, goal, country_label)
+    st.info("Set your inputs in the sidebar and click **Generate Plan** to see reach / conversion estimates.")
+    st.stop()
 
-    st.subheader("📊 High-Level Summary")
+# Normalize shares so they sum to 1
+shares = {
+    "Meta (FB + IG)": meta_share,
+    "TikTok Ads": tiktok_share,
+    "Google Search": google_share,
+    "YouTube Ads": youtube_share,
+    "Spotify Ads": spotify_share,
+    "Twitter/X Ads": twitter_share,
+    "Snapchat Ads": snap_share,
+}
+total_share = sum(shares.values())
+if total_share == 0:
+    st.error("Total platform allocation is 0%. Increase some sliders.")
+    st.stop()
 
-    # Build summary table
-    rows = []
-    for p in PLATFORMS:
-        m = perf[p]
-        rows.append({
-            "Platform": p,
-            "Est. Spend": round(m["spend"], 2),
-            "Est. Reach": int(m["estimated_reach"]),
-            "Est. Clicks": int(m["clicks"]),
-            "Est. Conversions": int(m["conversions"]),
-            "Est. Revenue": round(m["revenue"], 2),
-            "ROI (%)": round(m["roi"] * 100.0, 1),
-        })
-    df_summary = pd.DataFrame(rows)
-    st.dataframe(df_summary, use_container_width=True)
+norm_shares = {p: v / total_share for p, v in shares.items() if v > 0}
 
-    total_spend = df_summary["Est. Spend"].sum()
-    total_revenue = df_summary["Est. Revenue"].sum()
-    total_roi = (total_revenue - total_spend) / total_spend if total_spend > 0 else 0.0
+# Compute estimates per platform
+goal_key = primary_goal.lower()
+rows = []
+for plat, ratio in norm_shares.items():
+    plat_budget = monthly_budget * ratio
+    est = estimate_platform(plat, goal_key, plat_budget, avg_revenue)
+    rows.append(est)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Spend (USD)", f"${total_spend:,.0f}")
-    with col2:
-        st.metric("Total Revenue (USD)", f"${total_revenue:,.0f}")
-    with col3:
-        st.metric("Blended ROI", f"{total_roi*100:,.1f}%")
+df = pd.DataFrame(rows)
 
-    st.markdown("---")
-    st.subheader("🧠 Per-Platform Strategy & Estimates")
+st.subheader("📊 Estimated Reach, Clicks, Conversions & ROI by Platform")
+st.dataframe(df, use_container_width=True)
 
-    for p in PLATFORMS:
-        m = perf[p]
-        s = strat[p]
-        st.markdown(f"#### {p}")
-        with st.container():
-            st.markdown('<div class="platform-card">', unsafe_allow_html=True)
-            c1, c2 = st.columns([2, 1])
-            with c1:
-                st.markdown(f"**Objective:** {s['objective']}")
-                st.markdown(f"**Audience Direction:** {s['audience']}")
-                st.markdown(f"**Creative Direction:** {s['creative']}")
-            with c2:
-                st.write("**Estimates**")
-                st.write(f"- Spend: `${m['spend']:,.0f}` / month")
-                st.write(f"- Reach: ~`{int(m['estimated_reach']):,}` people")
-                st.write(f"- Clicks: ~`{int(m['clicks']):,}`")
-                st.write(f"- Conversions: ~`{int(m['conversions']):,}`")
-                st.write(f"- Revenue: `${m['revenue']:,.0f}`")
-                st.write(f"- ROI: `{m['roi']*100:,.1f}%`")
-            st.markdown('</div>', unsafe_allow_html=True)
+# Totals
+total_impressions = df["Impressions"].sum()
+total_clicks = df["Clicks"].sum()
+total_conversions = df["Conversions"].sum()
+total_revenue = df["Revenue"].sum()
+overall_roi = 0.0
+if monthly_budget > 0:
+    overall_roi = (total_revenue - monthly_budget) / monthly_budget * 100.0
 
-    # ==========================
-    # Optional Google Trends section
-    # ==========================
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total Impressions", f"{int(total_impressions):,}")
+col2.metric("Total Clicks", f"{int(total_clicks):,}")
+col3.metric("Total Conversions", f"{total_conversions:,.1f}")
+col4.metric("Overall ROI %", f"{overall_roi:,.1f}%")
 
-    st.markdown("---")
-    st.subheader("📈 Google Trends Insights (Research Mode)")
-
-    if use_trends and HAS_TRENDS:
-        # parse seeds
-        seeds = []
-        if trend_kw_raw.strip():
-            for part in trend_kw_raw.replace(",", "\n").split("\n"):
-                v = part.strip()
-                if v:
-                    seeds.append(v)
-        if not seeds:
-            # if user left empty, auto-seed from niche
-            if "music" in niche.lower():
-                seeds = ["trap beats", "afrobeats", "independent artist"]
-            elif "clothing" in niche.lower():
-                seeds = ["streetwear", "vintage clothing", "y2k fashion"]
-            else:
-                seeds = ["home care services", "elder care", "caregiver near me"]
-
-        with st.spinner("Pulling Google Trends data..."):
-            t = get_trends(seeds, geo=trend_geo or "WORLD", timeframe="today 12-m")
-
-        if "error" in t and t["error"]:
-            st.warning(f"Trends error: {t['error']}")
-        else:
-            iot = t.get("interest_over_time")
-            reg = t.get("by_region")
-            sugg = t.get("related_suggestions", [])
-
-            st.markdown(f"**Seed terms used:** {', '.join(seeds)}")
-
-            if isinstance(iot, pd.DataFrame) and not iot.empty:
-                st.write("**Interest over time**")
-                st.line_chart(iot)
-
-            if isinstance(reg, pd.DataFrame) and not reg.empty:
-                st.write("**Top regions by interest**")
-                st.dataframe(reg.head(20))
-
-            if sugg:
-                st.write("**Related queries (top + rising)**")
-                st.dataframe(pd.DataFrame({"Query": sugg[:50]}))
-
-            st.info("Use these insights to refine your keywords, creatives, and regional targeting on each platform.")
-    else:
-        st.info("Enable Google Trends in the sidebar (and ensure `pytrends` is installed) to see interest charts and related queries.")
-
-    # ==========================
-    # Download plan as JSON
-    # ==========================
-
-    st.markdown("---")
-    st.subheader("⬇️ Download Plan")
-
-    export_data = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
-        "niche": niche,
-        "goal": goal,
-        "monthly_budget": monthly_budget,
-        "avg_revenue_per_conversion": avg_rev,
-        "country_label": country_label,
-        "platform_estimates": perf,
-        "platform_strategies": strat,
-    }
-
-    buf = io.StringIO()
-    json.dump(export_data, buf, indent=2)
-    st.download_button(
-        label="Download JSON Media Plan",
-        data=buf.getvalue(),
-        file_name="sully_media_plan.json",
-        mime="application/json"
-    )
+st.markdown("---")
+st.caption(
+    "All numbers above are **rough planning estimates**, not live API data. "
+    "To get true performance, you’ll connect each platform’s ad account and pull actual stats."
+)
