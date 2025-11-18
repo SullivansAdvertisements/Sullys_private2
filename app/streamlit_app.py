@@ -1,369 +1,486 @@
 # ==========================
-# Sullivan's Advertisements – Marketing Bot
-# Clean light-theme Streamlit app with logo, ROI + reach estimator
+# Sully's Mini Media Planner
+# Fresh build: light theme, logo, multi-platform brain
 # ==========================
 
-import sys
-from pathlib import Path
-from datetime import datetime
+from __future__ import annotations
+
 import io
 import json
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
-# Optional: Google Trends (pytrends)
-try:
-    from pytrends.request import TrendReq
-    HAS_TRENDS = True
-except ImportError:
-    HAS_TRENDS = False
+# ---------- CONFIG ----------
+APP_TITLE = "Sully's Mini Media Planner"
+LOGO_PATH = Path(__file__).with_name("sullivans_logo.png")
 
-# Optional: connect to your old strategy engine if available
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))
-try:
-    from bot.core import generate_strategy  # type: ignore
-except Exception:
-    generate_strategy = None  # app still works without it
+PRIMARY_NICHES = [
+    "Music / Artists",
+    "Clothing Brand / Streetwear",
+    "Local Home Care Services",
+    "Other / General Business",
+]
 
-# ==========================
-# Page config (light look)
-# ==========================
+PRIMARY_GOALS = [
+    "Sales / Purchases",
+    "Leads / Sign-ups",
+    "Brand Awareness",
+    "Website Traffic",
+]
+
+PLATFORMS = [
+    "Meta (FB + IG)",
+    "TikTok Ads",
+    "Google Search",
+    "YouTube Ads",
+    "Spotify Ads",
+    "Twitter/X Ads",
+    "Snapchat Ads",
+]
+
+COUNTRY_OPTIONS = [
+    "Worldwide",
+    "United States",
+    "Canada",
+    "United Kingdom",
+    "Australia",
+    "European Union (EU)",
+    "Other (manual)",
+]
+
+# ---------- ASSUMPTION ENGINE ("BRAIN") ----------
+
+@dataclass
+class PlatformAssumptions:
+    base_cpm: float        # $ per 1,000 impressions (awareness-ish)
+    ctr: float             # % click-through rate
+    cvr_sales: float       # % conversion rate for "Sales / Purchases"
+    cvr_leads: float       # % conversion rate for "Leads / Sign-ups"
+    cvr_awareness: float   # pseudo conversion for awareness goals (engaged users)
+    cvr_traffic: float     # % users who go deep on site for traffic goals
+
+
+# These are heuristic, average “good” account numbers.
+# You can tweak them later inside the app if you want.
+PLATFORM_DEFAULTS: Dict[str, PlatformAssumptions] = {
+    "Meta (FB + IG)": PlatformAssumptions(
+        base_cpm=6.0, ctr=1.2, cvr_sales=2.5, cvr_leads=5.0, cvr_awareness=8.0, cvr_traffic=3.5
+    ),
+    "TikTok Ads": PlatformAssumptions(
+        base_cpm=4.0, ctr=1.5, cvr_sales=1.8, cvr_leads=4.0, cvr_awareness=10.0, cvr_traffic=4.0
+    ),
+    "Google Search": PlatformAssumptions(
+        base_cpm=12.0, ctr=4.0, cvr_sales=5.0, cvr_leads=10.0, cvr_awareness=0.5, cvr_traffic=7.0
+    ),
+    "YouTube Ads": PlatformAssumptions(
+        base_cpm=5.0, ctr=0.9, cvr_sales=1.5, cvr_leads=3.0, cvr_awareness=6.0, cvr_traffic=2.5
+    ),
+    "Spotify Ads": PlatformAssumptions(
+        base_cpm=7.0, ctr=0.5, cvr_sales=1.0, cvr_leads=2.0, cvr_awareness=5.0, cvr_traffic=1.5
+    ),
+    "Twitter/X Ads": PlatformAssumptions(
+        base_cpm=5.5, ctr=1.0, cvr_sales=1.3, cvr_leads=3.0, cvr_awareness=4.0, cvr_traffic=2.0
+    ),
+    "Snapchat Ads": PlatformAssumptions(
+        base_cpm=3.5, ctr=1.3, cvr_sales=1.6, cvr_leads=3.5, cvr_awareness=7.0, cvr_traffic=3.0
+    ),
+}
+
+
+def get_goal_cvr(ass: PlatformAssumptions, primary_goal: str) -> float:
+    """Select the conversion-rate assumption based on primary goal."""
+    if primary_goal == "Sales / Purchases":
+        return ass.cvr_sales
+    if primary_goal == "Leads / Sign-ups":
+        return ass.cvr_leads
+    if primary_goal == "Brand Awareness":
+        return ass.cvr_awareness
+    if primary_goal == "Website Traffic":
+        return ass.cvr_traffic
+    return ass.cvr_sales
+
+
+def platform_weight_by_niche(niche: str) -> Dict[str, float]:
+    """How each platform should roughly share budget for that niche (before user selection)."""
+    if niche == "Music / Artists":
+        return {
+            "Meta (FB + IG)": 0.25,
+            "TikTok Ads": 0.25,
+            "YouTube Ads": 0.20,
+            "Spotify Ads": 0.15,
+            "Twitter/X Ads": 0.10,
+            "Google Search": 0.03,
+            "Snapchat Ads": 0.02,
+        }
+    if niche == "Clothing Brand / Streetwear":
+        return {
+            "Meta (FB + IG)": 0.30,
+            "TikTok Ads": 0.25,
+            "Google Search": 0.15,
+            "YouTube Ads": 0.10,
+            "Snapchat Ads": 0.10,
+            "Twitter/X Ads": 0.07,
+            "Spotify Ads": 0.03,
+        }
+    if niche == "Local Home Care Services":
+        return {
+            "Google Search": 0.40,
+            "Meta (FB + IG)": 0.30,
+            "YouTube Ads": 0.15,
+            "Twitter/X Ads": 0.05,
+            "TikTok Ads": 0.05,
+            "Snapchat Ads": 0.03,
+            "Spotify Ads": 0.02,
+        }
+    # Default equal split
+    return {p: 1.0 / len(PLATFORMS) for p in PLATFORMS}
+
+
+def estimate_platform(
+    platform: str,
+    primary_goal: str,
+    monthly_budget: float,
+    avg_revenue_per_conv: float,
+    niche: str,
+    country: str,
+) -> Dict[str, float | str]:
+    """
+    Core brain for a single platform:
+    - Allocates budget
+    - Estimates impressions, reach, clicks, conversions, CPA, ROAS, ROI
+    """
+    ass = PLATFORM_DEFAULTS[platform]
+    cpm = ass.base_cpm
+    ctr = ass.ctr / 100.0
+    cvr = get_goal_cvr(ass, primary_goal) / 100.0
+
+    impressions = (monthly_budget / cpm) * 1000 if cpm > 0 else 0.0
+    # Very rough: reach ~ 70% of impressions for awareness-type flights
+    reach = impressions * 0.7
+    clicks = impressions * ctr
+    conversions = clicks * cvr
+
+    est_revenue = conversions * avg_revenue_per_conv
+    cost = monthly_budget
+
+    cpa = cost / conversions if conversions > 0 else 0.0
+    roas = est_revenue / cost if cost > 0 else 0.0
+    roi_pct = ((est_revenue - cost) / cost * 100.0) if cost > 0 else 0.0
+
+    return {
+        "Platform": platform,
+        "Goal": primary_goal,
+        "Niche": niche,
+        "Country": country,
+        "Budget_USD": round(cost, 2),
+        "Impressions": round(impressions),
+        "Reach": round(reach),
+        "Clicks": round(clicks),
+        "Conversions": round(conversions, 2),
+        "Est_Revenue_USD": round(est_revenue, 2),
+        "CPA_USD": round(cpa, 2) if cpa else 0.0,
+        "ROAS": round(roas, 2),
+        "ROI_%": round(roi_pct, 1),
+    }
+
+
+def build_campaign_structure(platform: str, primary_goal: str, niche: str) -> List[str]:
+    """
+    High-level recommended campaign structure per platform.
+    This is text only for now, not API calls.
+    """
+    items: List[str] = []
+
+    if platform == "Meta (FB + IG)":
+        if primary_goal in ("Sales / Purchases", "Leads / Sign-ups"):
+            items.extend([
+                "1 x Prospecting campaign (Advantage+ or Sales objective)",
+                "1 x Retargeting campaign (Custom audiences: engagers + website visitors)",
+                "Ad sets split by: top geos, age buckets, and key interests",
+                "Use 3–5 creatives per ad set: UGC, testimonial, product demo, carousel",
+            ])
+        elif primary_goal == "Brand Awareness":
+            items.extend([
+                "1 x Awareness campaign (Reach or Awareness objective)",
+                "Broad targeting with frequency cap, creative testing for hooks",
+            ])
+        else:  # Traffic
+            items.extend([
+                "1 x Traffic campaign, auto placements, traffic to LP / smartlink",
+                "Exclude converters, optimize for Landing Page Views",
+            ])
+
+    elif platform == "TikTok Ads":
+        items.extend([
+            "Campaign objective aligned to: Video Views / Traffic / Conversions",
+            "3–6 short-form creatives (9–15s) with strong hooks in first 2 seconds",
+            "Use broad interest stacks and let learning phase optimize",
+        ])
+
+    elif platform == "Google Search":
+        items.extend([
+            "1–3 Search campaigns grouped by intent: Brand, Core Non-Brand, Competitors",
+            "Exact + Phrase for high-intent queries, Broad with smart bidding for scale",
+            "Structured ad groups with tight keyword themes, RSA + strong ad assets",
+        ])
+
+    elif platform == "YouTube Ads":
+        items.extend([
+            "1 x Awareness + 1 x Action campaign (In-Stream Skippable)",
+            "Target custom segments (search terms, URLs) plus remarketing audiences",
+        ])
+
+    elif platform == "Spotify Ads":
+        items.extend([
+            "1–2 Audio campaigns targeting music tastes, interests, and locations",
+            "Include companion display where possible; clear CTA in the script",
+        ])
+
+    elif platform == "Twitter/X Ads":
+        items.extend([
+            "Campaign for engagement/website clicks based on goal",
+            "Target by keywords, handles, and lookalikes; rotate creatives weekly",
+        ])
+
+    elif platform == "Snapchat Ads":
+        items.extend([
+            "1 x Prospecting and 1 x Retargeting campaign",
+            "Top Snap + Story ads with short, vertical creatives and bold CTA",
+        ])
+
+    # Add a generic safety note
+    items.append("Set up proper pixel/conversion tracking before scaling budgets.")
+    return items
+
+
+# ---------- UI LAYOUT ----------
+
 st.set_page_config(
-    page_title="Sullivan's Marketing Bot",
-    page_icon="📊",
+    page_title=APP_TITLE,
+    page_icon="🧠",
     layout="wide",
 )
 
-# Small CSS tweak to keep things light and readable
+# Light theme / basic CSS for readability
 st.markdown(
     """
     <style>
     .stApp {
-        background-color: #f7f7f9;
+        background-color: #f5f7fb;
+        color: #111827;
     }
-    .main > div {
-        padding-top: 0rem;
+    .main .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 3rem;
     }
-    h1, h2, h3, h4, h5, h6, p, span, label {
-        color: #123 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    h1, h2, h3 {
+        color: #111827;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ==========================
-# Header with logo
-# ==========================
-
-logo_path = Path(__file__).with_name("sullivans_logo.png")
-
-header_cols = st.columns([1, 4])
-with header_cols[0]:
-    if logo_path.exists():
-        st.image(str(logo_path), use_column_width=True)
-    else:
-        st.write("🔺 Upload `sullivans_logo.png` next to this file.")
-
-with header_cols[1]:
-    st.title("Sullivan's Marketing Bot")
-    st.caption("Planning & estimating for Google/YouTube, Meta, TikTok, and X (Twitter).")
+# Header with logo + title
+header_col1, header_col2 = st.columns([1, 4])
+with header_col1:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), width=120)
+with header_col2:
+    st.title(APP_TITLE)
+    st.caption("Multi-platform strategy + reach/conversion/ROI estimator for Meta, TikTok, Google, YouTube, Spotify, X, Snapchat")
 
 
-# ==========================
-# Sidebar – inputs
-# ==========================
+# ---------- SIDEBAR: INPUTS ----------
+
 with st.sidebar:
-    st.header("Campaign Inputs")
+    st.subheader("🧩 Planner Inputs")
 
-    niche = st.selectbox(
-        "Business type",
-        ["Clothing brand", "Consignment store", "Musician / Artist", "Home care (elderly / special needs)"],
-    )
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), width=160)
 
-    primary_goal = st.selectbox(
-        "Primary goal",
-        ["Awareness", "Traffic", "Leads", "Sales"],
-    )
+    niche = st.selectbox("Niche / Vertical", PRIMARY_NICHES, index=0)
+    primary_goal = st.selectbox("Primary Goal", PRIMARY_GOALS, index=0)
 
     monthly_budget = st.number_input(
-        "Monthly ad budget (USD)",
+        "Total Monthly Ad Budget (USD)",
         min_value=100.0,
-        value=2500.0,
+        value=3000.0,
         step=100.0,
     )
 
-    avg_order_value = st.number_input(
-        "Average revenue per conversion (USD)",
-        min_value=5.0,
+    avg_rev_per_conv = st.number_input(
+        "Avg Revenue per Conversion (USD)",
+        min_value=1.0,
         value=80.0,
         step=5.0,
+        help="For sales: AOV. For leads: estimated LTV per lead that becomes a customer.",
     )
 
-    country = st.text_input("Main country / market", value="US")
+    country_choice = st.selectbox("Target Country / Region", COUNTRY_OPTIONS, index=0)
+    if country_choice == "Other (manual)":
+        country = st.text_input("Enter country/region name", value="Worldwide")
+    else:
+        country = country_choice
 
-    st.markdown("---")
-    st.subheader("Google Trends (optional)")
-
-    use_trends = st.checkbox("Use Google Trends insights", value=True)
-    trend_seed_text = st.text_area(
-        "Trend seed keywords (comma or new line)",
-        placeholder="streetwear, vintage clothing, trap beats, caregiver services",
-    )
-    trends_timeframe = st.selectbox(
-        "Trends timeframe",
-        ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
-        index=2,
+    selected_platforms = st.multiselect(
+        "Platforms to include",
+        PLATFORMS,
+        default=PLATFORMS,
     )
 
     st.markdown("---")
-    st.subheader("Competitor URLs (optional)")
-    comp_text = st.text_area(
-        "One URL per line",
-        placeholder="https://competitor1.com\nhttps://competitor2.com",
+    run = st.button("🚀 Generate Strategic Plan", type="primary")
+
+
+# ---------- MAIN LOGIC ----------
+
+if not run:
+    st.info(
+        "Set your niche, goal, budget, and platforms in the sidebar, then click **“🚀 Generate Strategic Plan”**."
     )
-    competitors = [c.strip() for c in comp_text.splitlines() if c.strip()]
+    st.stop()
 
-    st.markdown("---")
-    run_button = st.button("🚀 Run Estimator", type="primary")
+# Compute platform budgets using niche weights
+weights = platform_weight_by_niche(niche)
+# Filter to selected platforms only
+weights = {p: w for p, w in weights.items() if p in selected_platforms}
 
+if not weights:
+    st.error("Please select at least one platform in the sidebar.")
+    st.stop()
 
-# ==========================
-# Helper functions
-# ==========================
+# Normalize weights
+total_w = sum(weights.values())
+if total_w <= 0:
+    weights = {p: 1.0 / len(weights) for p in weights}
+else:
+    weights = {p: w / total_w for p, w in weights.items()}
 
-def parse_trend_seeds(raw: str) -> list[str]:
-    if not raw:
-        return []
-    parts = []
-    for chunk in raw.replace(",", "\n").splitlines():
-        v = chunk.strip()
-        if v:
-            parts.append(v)
-    # dedupe while preserving order
-    seen = set()
-    uniq = []
-    for p in parts:
-        if p not in seen:
-            seen.add(p)
-            uniq.append(p)
-    return uniq[:5]  # keep it small for Trends
+rows: List[Dict[str, float | str]] = []
+for platform, w in weights.items():
+    plat_budget = monthly_budget * w
+    row = estimate_platform(
+        platform=platform,
+        primary_goal=primary_goal,
+        monthly_budget=plat_budget,
+        avg_revenue_per_conv=avg_rev_per_conv,
+        niche=niche,
+        country=country,
+    )
+    rows.append(row)
 
+df = pd.DataFrame(rows)
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_trends(seed_terms: list[str], geo: str, timeframe: str):
-    """Small wrapper around pytrends for interest + related queries."""
-    if not HAS_TRENDS or not seed_terms:
-        return {}
+# ---------- OVERVIEW TABLE ----------
 
-    try:
-        pytrends = TrendReq(hl="en-US", tz=360)
-        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo or "")
-        out: dict = {}
+st.subheader("📊 Platform Overview — Estimates")
 
-        iot = pytrends.interest_over_time()
-        if isinstance(iot, pd.DataFrame) and not iot.empty:
-            if "isPartial" in iot.columns:
-                iot = iot.drop(columns=["isPartial"])
-            out["interest_over_time"] = iot
-
-        related = pytrends.related_queries()
-        suggestions = []
-        if isinstance(related, dict):
-            for term, buckets in related.items():
-                for key in ("top", "rising"):
-                    df = buckets.get(key)
-                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
-                        suggestions.extend(df["query"].dropna().astype(str).tolist())
-        # dedupe suggestions
-        seen = set()
-        uniq = []
-        for s in suggestions:
-            if s not in seen:
-                seen.add(s)
-                uniq.append(s)
-        out["related_suggestions"] = uniq[:50]
-        return out
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def estimate_performance(goal: str, budget: float, aov: float) -> pd.DataFrame:
-    """
-    Very simplified estimator using typical CPM/CPC and conversion assumptions.
-    These are NOT live platform numbers – just planning heuristics.
-    """
-    # budget allocation per platform
-    allocation = {
-        "Google / YouTube": 0.40,
-        "Meta (Facebook / IG)": 0.35,
-        "TikTok": 0.15,
-        "X (Twitter)": 0.10,
-    }
-
-    # baseline channel metrics by primary goal
-    # all values are "reasonable defaults", change as needed
-    assumptions = {
-        "Awareness": {
-            "Google / YouTube": {"cpm": 12.0, "ctr": 0.01, "conv_rate": 0.002},
-            "Meta (Facebook / IG)": {"cpm": 8.0, "ctr": 0.012, "conv_rate": 0.002},
-            "TikTok": {"cpm": 6.0, "ctr": 0.013, "conv_rate": 0.0015},
-            "X (Twitter)": {"cpm": 7.0, "ctr": 0.009, "conv_rate": 0.001},
-        },
-        "Traffic": {
-            "Google / YouTube": {"cpc": 1.2, "conv_rate": 0.02},
-            "Meta (Facebook / IG)": {"cpc": 0.9, "conv_rate": 0.018},
-            "TikTok": {"cpc": 0.7, "conv_rate": 0.015},
-            "X (Twitter)": {"cpc": 0.8, "conv_rate": 0.012},
-        },
-        "Leads": {
-            "Google / YouTube": {"cpc": 1.8, "conv_rate": 0.10},
-            "Meta (Facebook / IG)": {"cpc": 1.5, "conv_rate": 0.09},
-            "TikTok": {"cpc": 1.2, "conv_rate": 0.08},
-            "X (Twitter)": {"cpc": 1.3, "conv_rate": 0.07},
-        },
-        "Sales": {
-            "Google / YouTube": {"cpc": 2.0, "conv_rate": 0.04},
-            "Meta (Facebook / IG)": {"cpc": 1.7, "conv_rate": 0.035},
-            "TikTok": {"cpc": 1.4, "conv_rate": 0.03},
-            "X (Twitter)": {"cpc": 1.5, "conv_rate": 0.025},
-        },
-    }
-
-    rows = []
-
-    for platform, share in allocation.items():
-        spend = budget * share
-        metrics = assumptions[goal][platform]
-
-        if goal == "Awareness":
-            cpm = metrics["cpm"]           # cost per 1000 impressions
-            ctr = metrics["ctr"]           # click-through rate
-            conv_rate = metrics["conv_rate"]
-
-            impressions = (spend / cpm) * 1000
-            clicks = impressions * ctr
-            conversions = clicks * conv_rate
-
-        else:
-            cpc = metrics["cpc"]
-            conv_rate = metrics["conv_rate"]
-
-            clicks = spend / cpc if cpc else 0
-            impressions = clicks * 40      # crude guess (25–40 views per click)
-            conversions = clicks * conv_rate
-
-        est_revenue = conversions * aov
-        roi = ((est_revenue - spend) / spend * 100) if spend > 0 else 0.0
-
-        rows.append(
-            {
-                "Platform": platform,
-                "Budget (USD)": round(spend, 2),
-                "Est. Impressions": int(impressions),
-                "Est. Clicks": int(clicks),
-                "Est. Conversions": round(conversions, 1),
-                "Est. Revenue (USD)": round(est_revenue, 2),
-                "Est. ROI %": round(roi, 1),
-            }
-        )
-
-    df = pd.DataFrame(rows)
-    return df
-
-
-# ==========================
-# Main body
-# ==========================
-
-st.markdown("### Overview")
-st.write(
-    f"""
-    **Niche:** {niche}  
-    **Goal:** {primary_goal}  
-    **Monthly Budget:** ${monthly_budget:,.0f}  
-    **Average Value per Conversion:** ${avg_order_value:,.2f}  
-    **Market:** {country}
-    """
+st.caption("These are model-based estimates, not live API data. Use as a planning starting point.")
+st.dataframe(
+    df[
+        [
+            "Platform",
+            "Budget_USD",
+            "Impressions",
+            "Reach",
+            "Clicks",
+            "Conversions",
+            "CPA_USD",
+            "Est_Revenue_USD",
+            "ROAS",
+            "ROI_%",
+        ]
+    ],
+    use_container_width=True,
 )
 
-results_df: pd.DataFrame | None = None
-trend_info: dict | None = None
+total_cost = df["Budget_USD"].sum()
+total_rev = df["Est_Revenue_USD"].sum()
+overall_roas = total_rev / total_cost if total_cost > 0 else 0.0
+overall_roi = (total_rev - total_cost) / total_cost * 100.0 if total_cost > 0 else 0.0
 
-if run_button:
-    # 1) Performance estimation
-    results_df = estimate_performance(primary_goal, monthly_budget, avg_order_value)
+st.markdown(
+    f"""
+**Total Monthly Spend:** ${total_cost:,.0f}  
+**Estimated Revenue:** ${total_rev:,.0f}  
+**Overall ROAS:** {overall_roas:,.2f}x  
+**Overall ROI:** {overall_roi:,.1f}%
+"""
+)
 
-    st.subheader("📊 Estimated Reach, Conversions & ROI by Platform")
-    st.dataframe(results_df, use_container_width=True)
+if avg_rev_per_conv < 80:
+    st.warning(
+        "Your average revenue per conversion is relatively low. "
+        "If estimated CPA is higher than your revenue per customer, ROI will be negative. "
+        "You can increase AOV, improve conversion rate, or lower CPMs/CPAs to fix that."
+    )
 
-    total_spend = results_df["Budget (USD)"].sum()
-    total_revenue = results_df["Est. Revenue (USD)"].sum()
-    total_conversions = results_df["Est. Conversions"].sum()
-    blended_roi = (total_revenue - total_spend) / total_spend * 100 if total_spend > 0 else 0
+# ---------- PER-PLATFORM DETAILS ----------
 
-    kpi_cols = st.columns(4)
-    kpi_cols[0].metric("Total spend (est.)", f"${total_spend:,.0f}")
-    kpi_cols[1].metric("Total conversions (est.)", f"{total_conversions:,.1f}")
-    kpi_cols[2].metric("Total revenue (est.)", f"${total_revenue:,.0f}")
-    kpi_cols[3].metric("Blended ROI (est.)", f"{blended_roi:,.1f}%")
+st.subheader("🧠 Strategic Breakdown by Platform")
 
-    st.markdown("#### Platform ROI comparison")
-    roi_chart_df = results_df.set_index("Platform")[["Est. ROI %"]]
-    st.bar_chart(roi_chart_df)
-
-    # 2) Optional Google Trends
-    if use_trends and HAS_TRENDS:
-        st.subheader("📈 Google Trends Insights")
-
-        seeds = parse_trend_seeds(trend_seed_text)
-        if not seeds:
-            st.info("Enter 1–5 trend seed keywords in the sidebar to pull Google Trends data.")
-        else:
-            trend_info = fetch_trends(seeds, country, trends_timeframe)
-
-            if trend_info.get("error"):
-                st.warning(f"Trends error (often 429 = too many requests): {trend_info['error']}")
-            else:
-                iot = trend_info.get("interest_over_time")
-                if isinstance(iot, pd.DataFrame) and not iot.empty:
-                    st.write("**Interest over time**")
-                    st.line_chart(iot)
-
-                sugg = trend_info.get("related_suggestions", [])
-                if sugg:
-                    st.write("**Related search queries (top + rising)**")
-                    st.dataframe(pd.DataFrame({"Query": sugg}))
-
-                    st.caption(
-                        "Use these ideas to expand your keyword lists for Google, Meta interests, "
-                        "TikTok interests/hashtags, and X (Twitter) topics."
-                    )
-
-    elif use_trends and not HAS_TRENDS:
-        st.warning("pytrends is not installed. Add `pytrends==4.9.2` to requirements.txt to enable Trends.")
-
-    # 3) Optional: call your advanced generator if available
-    if generate_strategy is not None and competitors:
-        st.subheader("🧠 Extra: Strategy notes from competitor URLs")
-        try:
-            # geo string is just the country here
-            plan = generate_strategy(
-                niche=niche,
-                budget=float(monthly_budget),
-                goal=primary_goal,
-                geo=country,
-                competitors=competitors,
+for platform in df["Platform"]:
+    plat_data = df[df["Platform"] == platform].iloc[0].to_dict()
+    with st.expander(f"{platform} — {primary_goal} plan", expanded=False):
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.markdown(
+                f"""
+**Goal:** {primary_goal}  
+**Monthly Budget:** ${plat_data['Budget_USD']:,.0f}  
+**Est. Impressions:** {plat_data['Impressions']:,.0f}  
+**Est. Reach:** {plat_data['Reach']:,.0f}  
+**Est. Clicks:** {plat_data['Clicks']:,.0f}  
+**Est. Conversions:** {plat_data['Conversions']:,.2f}  
+**Est. CPA:** ${plat_data['CPA_USD']:,.2f}  
+**Est. ROAS:** {plat_data['ROAS']:,.2f}x  
+**Est. ROI:** {plat_data['ROI_%']:,.1f}%
+"""
             )
-            # we don't rely on its schema – just show whatever summary it returns
-            plan_json = json.dumps(plan, indent=2)
-            st.code(plan_json, language="json")
-        except Exception as e:
-            st.warning(f"Strategy engine error (bot.core): {e}")
+        with c2:
+            st.markdown("**Recommended Campaign Structure**")
+            items = build_campaign_structure(platform, primary_goal, niche)
+            st.markdown("\n".join([f"- {it}" for it in items]))
 
-else:
-    st.info("Set your inputs on the left and click **🚀 Run Estimator** to see reach, conversions, and ROI per platform.")
+# ---------- EXPORT PLAN ----------
+
+st.subheader("⬇️ Export Plan")
+
+ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+export_name = f"sully_media_plan_{ts}.json"
+
+export_payload = {
+    "generated_at": ts,
+    "niche": niche,
+    "goal": primary_goal,
+    "country": country,
+    "monthly_budget_usd": monthly_budget,
+    "avg_revenue_per_conversion_usd": avg_rev_per_conv,
+    "platforms": rows,
+    "overall": {
+        "total_cost": float(total_cost),
+        "total_revenue": float(total_rev),
+        "overall_roas": float(overall_roas),
+        "overall_roi_pct": float(overall_roi),
+    },
+}
+
+buf = io.StringIO()
+json.dump(export_payload, buf, indent=2)
+st.download_button(
+    label="Download full plan as JSON",
+    data=buf.getvalue(),
+    file_name=export_name,
+    mime="application/json",
+)
+
+st.info(
+    "You can feed this JSON into separate scripts that actually create campaigns via each platform's API "
+    "(Meta Marketing API, Google Ads API, TikTok Marketing API, Spotify Ad Studio, X Ads, Snapchat Ads)."
+)
