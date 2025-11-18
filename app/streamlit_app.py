@@ -367,9 +367,3 @@ if run_button:
 
 else:
     st.info("Set your inputs on the left and click **🚀 Run Estimator** to see reach, conversions, and ROI per platform.")
-
-st.markdown("---")
-st.caption(
-    "All performance numbers shown are **estimates** based on generic CPM/CPC and conversion-rate assumptions. "
-    "Always validate with real campaign data from Google Ads, Meta, TikTok, and X."
-)
