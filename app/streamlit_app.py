@@ -4,6 +4,12 @@
 # ==========================
 
 import os
+META_TOKEN = st.secrets["META_SYSTEM_USER_TOKEN"]
+META_BM_ID = st.secrets["META_BUSINESS_ID"]
+META_AD_ACCOUNT = st.secrets["META_AD_ACCOUNT_ID"]
+META_APP_ID = st.secrets["META_APP_ID"]
+META_APP_SECRET = st.secrets["META_APP_SECRET"]
+
 import sys
 from pathlib import Path
 from datetime import datetime
