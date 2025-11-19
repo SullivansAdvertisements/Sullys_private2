@@ -1,18 +1,15 @@
 # ==========================
-# Sullivan's Media Planner Bot
-# Clean full replacement - light theme, logo, multi-platform brain
+# Sully's Super Media Planner Bot
 # ==========================
 
 import os
-import sys
-from pathlib import Path
 from datetime import datetime
-import io
-import json
+from pathlib import Path
+from typing import Dict, List
 
-import requests
 import streamlit as st
 import pandas as pd
+import requests
 
 # Optional: Google Trends
 try:
@@ -21,569 +18,572 @@ try:
 except ImportError:
     HAS_TRENDS = False
 
-# -------------------------
-# Streamlit Page Config
-# -------------------------
+# -------------
+# Meta secrets
+# -------------
+# Set these in .streamlit/secrets.toml or Streamlit Cloud Secrets:
+# META_SYSTEM_USER_TOKEN = "EAAX..."
+# META_AD_ACCOUNT_ID     = "act_1234567890"
+# META_BUSINESS_ID       = "1234567890"
+# META_APP_ID            = "..."
+# META_APP_SECRET        = "..."
+META_TOKEN = st.secrets.get("META_SYSTEM_USER_TOKEN", None)
+META_AD_ACCOUNT = st.secrets.get("META_AD_ACCOUNT_ID", None)
+META_BUSINESS_ID = st.secrets.get("META_BUSINESS_ID", None)
+META_APP_ID = st.secrets.get("META_APP_ID", None)
+META_APP_SECRET = st.secrets.get("META_APP_SECRET", None)
+
+# -------------
+# Page setup
+# -------------
 st.set_page_config(
-    page_title="Sullivan's Media Planner",
+    page_title="Sully's Super Media Planner",
     page_icon="🧠",
-    layout="wide"
+    layout="wide",
 )
 
-# -------------------------
-# Styling (light theme, more extravagant but clean)
-# -------------------------
-def inject_css():
+# -------------
+# Logo header
+# -------------
+LOGO_PATH = Path(__file__).with_name("sullivans_logo.png")
+
+cols = st.columns([1, 4])
+with cols[0]:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), use_column_width=True)
+with cols[1]:
     st.markdown(
         """
-        <style>
-            .stApp {
-                background-color: #f7f7fb;
-            }
-            .main-header {
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-                padding: 0.75rem 1.25rem;
-                background: linear-gradient(90deg, #0f172a, #1d4ed8, #06b6d4);
-                border-radius: 0 0 18px 18px;
-                color: white;
-                box-shadow: 0 4px 16px rgba(15, 23, 42, 0.45);
-                margin-bottom: 1.5rem;
-            }
-            .main-header h1 {
-                margin: 0;
-                font-size: 1.6rem;
-                font-weight: 700;
-            }
-            .main-header p {
-                margin: 0;
-                opacity: 0.9;
-                font-size: 0.9rem;
-            }
-            .logo-img {
-                height: 52px;
-                width: auto;
-                object-fit: contain;
-            }
-            .card {
-                background-color: white;
-                border-radius: 18px;
-                padding: 1rem 1.25rem;
-                box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
-                margin-bottom: 1.2rem;
-            }
-            .section-title {
-                font-weight: 700;
-                font-size: 1.1rem;
-                margin-bottom: 0.25rem;
-            }
-            .section-subtitle {
-                font-size: 0.85rem;
-                color: #64748b;
-                margin-bottom: 0.75rem;
-            }
-            .metric-good {
-                color: #16a34a;
-                font-weight: 600;
-            }
-            .metric-bad {
-                color: #dc2626;
-                font-weight: 600;
-            }
-        </style>
+        # Sully's Super Media Planner 🧠  
+        *Multi-platform strategy brain for Music, Clothing, and Home Care.*
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
+st.markdown("---")
 
-# -------------------------
-# Logo helper (top header only, no background)
-# -------------------------
-def load_logo():
+# -------------
+# Helpers
+# -------------
+PLATFORMS = [
+    "Meta (FB + IG)",
+    "TikTok Ads",
+    "Google Search",
+    "YouTube Ads",
+    "Spotify Ads",
+    "Twitter/X Ads",
+    "Snapchat Ads",
+]
+
+GOALS = [
+    "awareness",
+    "traffic",
+    "leads",
+    "sales",
+]
+
+NICHES = [
+    "Music (Artists / Musicians)",
+    "Clothing / Streetwear Brands",
+    "Local Home Care Services",
+    "Other",
+]
+
+
+def safe_split_list(raw: str) -> List[str]:
+    if not raw:
+        return []
+    raw = raw.replace(",", "\n")
+    out = []
+    seen = set()
+    for line in raw.split("\n"):
+        v = line.strip()
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
+def get_default_keywords_for_niche(niche: str) -> List[str]:
+    niche = niche.lower()
+    if "music" in niche:
+        return ["trap beats", "drill music", "spotify playlist", "rap artist", "independent artist"]
+    if "clothing" in niche or "streetwear" in niche:
+        return ["streetwear", "graphic tees", "hoodies", "sneakerheads", "vintage clothing"]
+    if "home care" in niche:
+        return ["home care", "senior care", "caregiver services", "in home nursing", "alzheimers care"]
+    return ["brand awareness", "online store", "book services online"]
+
+
+# ---- Google Trends wrapper ----
+def fetch_trends(seed_terms: List[str], geo_code: str, timeframe: str = "today 12-m") -> Dict:
     """
-    Look for sullivans_logo.png in the same folder as this file.
-    If it exists, return its bytes; otherwise return None.
+    Uses Google Trends via pytrends if installed.
+    Returns a dict with keys: interest_over_time (df), by_region (df), related_suggestions (list), error (str|None)
     """
-    logo_path = Path(__file__).with_name("sullivans_logo.png")
-    if logo_path.exists():
-        return logo_path.read_bytes()
-    return None
-
-
-inject_css()
-
-# -------------------------
-# Meta API configuration from secrets
-# -------------------------
-META_TOKEN = st.secrets.get("META_SYSTEM_USER_TOKEN", "")
-META_BUSINESS_ID = st.secrets.get("META_BUSINESS_ID", "")
-META_AD_ACCOUNT_ID = st.secrets.get("META_AD_ACCOUNT_ID", "")
-META_APP_ID = st.secrets.get("META_APP_ID", "")
-META_APP_SECRET = st.secrets.get("META_APP_SECRET", "")
-
-# -------------------------
-# Helper: Google Trends wrapper
-# -------------------------
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_trends(seed_terms, geo="", timeframe="today 12-m"):
-    """
-    Wrap Google Trends via pytrends (if installed).
-    geo: "" for worldwide, "US" for United States, etc.
-    """
-    if not HAS_TRENDS or not seed_terms:
-        return {}
+    if not HAS_TRENDS:
+        return {"error": "pytrends not installed", "interest_over_time": None, "by_region": None, "related_suggestions": []}
+    if not seed_terms:
+        return {"error": "No seed terms provided", "interest_over_time": None, "by_region": None, "related_suggestions": []}
 
     try:
         pytrends = TrendReq(hl="en-US", tz=360)
-        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo)
+        pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo_code or "")
 
-        out = {}
+        result: Dict = {"error": None}
+
         iot = pytrends.interest_over_time()
         if isinstance(iot, pd.DataFrame) and not iot.empty:
             if "isPartial" in iot.columns:
                 iot = iot.drop(columns=["isPartial"])
-            out["interest_over_time"] = iot
+            result["interest_over_time"] = iot
+        else:
+            result["interest_over_time"] = None
 
-        reg = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
-        if isinstance(reg, pd.DataFrame) and not reg.empty:
-            first = seed_terms[0]
-            if first in reg.columns:
-                reg = reg.sort_values(first, ascending=False)
-            out["by_region"] = reg
+        by_region = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True, inc_geo_code=True)
+        if isinstance(by_region, pd.DataFrame) and not by_region.empty:
+            seed = seed_terms[0]
+            if seed in by_region.columns:
+                by_region = by_region.sort_values(seed, ascending=False)
+            result["by_region"] = by_region
+        else:
+            result["by_region"] = None
 
         rq = pytrends.related_queries()
         suggestions = []
         if isinstance(rq, dict):
             for term, buckets in rq.items():
-                for k in ("top", "rising"):
-                    df = buckets.get(k)
+                for key in ("top", "rising"):
+                    df = buckets.get(key)
                     if isinstance(df, pd.DataFrame) and "query" in df.columns:
                         suggestions.extend(df["query"].dropna().astype(str).tolist())
+        # de-dupe
         seen = set()
         uniq = []
         for s in suggestions:
             if s not in seen:
                 seen.add(s)
                 uniq.append(s)
-        out["related_suggestions"] = uniq[:80]
-
-        return out
+        result["related_suggestions"] = uniq[:100]
+        return result
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "interest_over_time": None, "by_region": None, "related_suggestions": []}
 
 
-# -------------------------
-# Helper: simple reach / conv / ROI model per platform
-# -------------------------
-def platform_benchmarks(goal: str):
+# ---- Estimation logic ----
+CPM_MAP = {  # approximate CPM (USD) for awareness
+    "Meta (FB + IG)": 8.0,
+    "TikTok Ads": 6.0,
+    "Google Search": 12.0,  # we fudge CPM from CPC
+    "YouTube Ads": 7.0,
+    "Spotify Ads": 9.0,
+    "Twitter/X Ads": 7.0,
+    "Snapchat Ads": 5.0,
+}
+
+# CTR and CVR guesses by goal and platform
+CTR_MAP = {
+    "awareness": 0.01,
+    "traffic": 0.02,
+    "leads": 0.015,
+    "sales": 0.012,
+}
+
+PLATFORM_CTR_BOOST = {
+    "Meta (FB + IG)": 1.1,
+    "TikTok Ads": 1.2,
+    "Google Search": 1.8,
+    "YouTube Ads": 1.0,
+    "Spotify Ads": 0.7,
+    "Twitter/X Ads": 0.9,
+    "Snapchat Ads": 1.0,
+}
+
+CVR_MAP = {
+    "awareness": 0.002,  # conversions/landing-page views
+    "traffic": 0.01,
+    "leads": 0.05,
+    "sales": 0.03,
+}
+
+PLATFORM_CVR_BOOST = {
+    "Meta (FB + IG)": 1.2,
+    "TikTok Ads": 1.1,
+    "Google Search": 1.6,
+    "YouTube Ads": 0.8,
+    "Spotify Ads": 0.7,
+    "Twitter/X Ads": 0.7,
+    "Snapchat Ads": 0.9,
+}
+
+
+def estimate_platform_metrics(
+    platform: str,
+    monthly_budget: float,
+    goal: str,
+    avg_revenue: float,
+) -> Dict:
     """
-    Very rough benchmarks per platform.
-    These ARE NOT live API forecasts – just planning heuristics.
-    Values: CPC in $, CTR and CVR as decimals.
+    Estimate reach, clicks, conversions, CPA, ROAS for one platform.
     """
-    # Base values
-    base = {
-        "Meta (FB/IG)":   {"cpc": 1.00, "ctr": 0.015, "cvr": 0.035},
-        "TikTok Ads":     {"cpc": 0.80, "ctr": 0.018, "cvr": 0.022},
-        "Google Search":  {"cpc": 1.50, "ctr": 0.04,  "cvr": 0.06},
-        "YouTube Ads":    {"cpc": 0.90, "ctr": 0.02,  "cvr": 0.025},
-        "Spotify Ads":    {"cpc": 0.75, "ctr": 0.012, "cvr": 0.015},
-        "X (Twitter)":    {"cpc": 0.70, "ctr": 0.017, "cvr": 0.018},
-        "Snapchat":       {"cpc": 0.60, "ctr": 0.02,  "cvr": 0.02},
+    cpm = CPM_MAP.get(platform, 8.0)
+    ctr_base = CTR_MAP.get(goal, 0.01)
+    cvr_base = CVR_MAP.get(goal, 0.01)
+
+    ctr = ctr_base * PLATFORM_CTR_BOOST.get(platform, 1.0)
+    cvr = cvr_base * PLATFORM_CVR_BOOST.get(platform, 1.0)
+
+    # Avoid ridiculous values
+    ctr = min(max(ctr, 0.002), 0.25)
+    cvr = min(max(cvr, 0.003), 0.5)
+
+    impressions = (monthly_budget / cpm) * 1000 if cpm > 0 else 0
+    clicks = impressions * ctr
+    conversions = clicks * cvr
+
+    spent = monthly_budget
+    revenue = conversions * avg_revenue
+    profit = revenue - spent
+    roi = (profit / spent) if spent > 0 else 0.0
+    roas = (revenue / spent) if spent > 0 else 0.0
+
+    return {
+        "platform": platform,
+        "budget": spent,
+        "impressions": round(impressions),
+        "reach_estimate": round(impressions * 0.6),  # rough: 60% unique
+        "clicks": round(clicks),
+        "conversions": round(conversions, 1),
+        "revenue": round(revenue, 2),
+        "profit": round(profit, 2),
+        "roi": round(roi, 2),
+        "roas": round(roas, 2),
     }
 
-    # Adjust for goal type
-    goal = goal.lower()
-    for p in base:
-        if "aware" in goal:
-            # Awareness: cheaper clicks, lower CVR
-            base[p]["cpc"] *= 0.8
-            base[p]["cvr"] *= 0.6
-        elif "traffic" in goal:
-            base[p]["ctr"] *= 1.2
-            base[p]["cvr"] *= 0.9
-        elif "lead" in goal or "conversion" in goal or "sales" in goal:
-            base[p]["cpc"] *= 1.1
-            base[p]["cvr"] *= 1.2
-    return base
+
+def build_strategy(
+    niche: str,
+    monthly_budget: float,
+    goal: str,
+    country: str,
+    platforms: List[str],
+    avg_revenue: float,
+    competitors: List[str],
+    trends: Dict,
+) -> Dict:
+    # Simple budget split per platform by niche
+    niche_l = niche.lower()
+    weights = {}
+    for p in platforms:
+        w = 1.0
+        if "music" in niche_l:
+            if "Spotify" in p or "YouTube" in p or "TikTok" in p or "Meta" in p:
+                w = 1.4
+        elif "clothing" in niche_l:
+            if "Meta" in p or "TikTok" in p or "Snapchat" in p:
+                w = 1.4
+        elif "home care" in niche_l:
+            if "Google Search" in p or "Meta" in p:
+                w = 1.5
+        weights[p] = w
+
+    total_w = sum(weights.values()) or 1.0
+    platform_rows = []
+    for p in platforms:
+        share = weights[p] / total_w
+        platform_budget = monthly_budget * share
+        est = estimate_platform_metrics(p, platform_budget, goal, avg_revenue)
+        est["budget_share_pct"] = round(share * 100, 1)
+        platform_rows.append(est)
+
+    df_platforms = pd.DataFrame(platform_rows)
+
+    overall = {
+        "monthly_budget": monthly_budget,
+        "niche": niche,
+        "goal": goal,
+        "country": country,
+        "platforms": platforms,
+        "total_impressions": int(df_platforms["impressions"].sum()) if not df_platforms.empty else 0,
+        "total_conversions": float(df_platforms["conversions"].sum()) if not df_platforms.empty else 0.0,
+        "total_revenue": float(df_platforms["revenue"].sum()) if not df_platforms.empty else 0.0,
+        "total_profit": float(df_platforms["profit"].sum()) if not df_platforms.empty else 0.0,
+    }
+
+    plan = {
+        "overall": overall,
+        "platform_df": df_platforms,
+        "trends": trends,
+        "competitors": competitors,
+    }
+    return plan
 
 
-def estimate_performance(budget: float, share: float, cpc: float, ctr: float, cvr: float, avg_rev: float):
-    """Return reach, clicks, conversions, CPA, ROAS, ROI%."""
-    spend = budget * share
-    if spend <= 0 or cpc <= 0:
-        return dict(spend=0, impressions=0, clicks=0, conv=0, cpa=0, roas=0, roi=0)
-
-    clicks = spend / cpc
-    impressions = clicks / ctr if ctr > 0 else 0
-    conv = clicks * cvr
-    revenue = conv * avg_rev
-    cpa = spend / conv if conv > 0 else 0
-    roas = revenue / spend if spend > 0 else 0
-    roi = ((revenue - spend) / spend * 100) if spend > 0 else 0
-    return dict(
-        spend=spend,
-        impressions=impressions,
-        clicks=clicks,
-        conv=conv,
-        cpa=cpa,
-        roas=roas,
-        roi=roi,
-    )
+# ---- Meta API hook ----
+def meta_api_available() -> bool:
+    return bool(META_TOKEN and META_AD_ACCOUNT)
 
 
-def split_budget(goal: str):
+def create_meta_campaign(
+    name: str,
+    objective: str,
+    daily_budget_usd: float,
+    country: str,
+) -> Dict:
     """
-    Budget split per platform based on goal.
-    Values sum ~1.0.
+    Creates a basic Meta campaign via Marketing API.
+    Uses new OUTCOME_* objectives from your error message.
     """
-    if "aware" in goal.lower():
-        return {
-            "Meta (FB/IG)":   0.30,
-            "TikTok Ads":     0.25,
-            "YouTube Ads":    0.20,
-            "Spotify Ads":    0.10,
-            "X (Twitter)":    0.10,
-            "Snapchat":       0.05,
-            "Google Search":  0.00,
-        }
-    elif "traffic" in goal.lower():
-        return {
-            "Meta (FB/IG)":   0.25,
-            "TikTok Ads":     0.20,
-            "Google Search":  0.25,
-            "YouTube Ads":    0.15,
-            "X (Twitter)":    0.10,
-            "Snapchat":       0.05,
-            "Spotify Ads":    0.00,
-        }
-    else:  # conversions / sales / leads
-        return {
-            "Google Search":  0.30,
-            "Meta (FB/IG)":   0.30,
-            "TikTok Ads":     0.15,
-            "YouTube Ads":    0.10,
-            "X (Twitter)":    0.05,
-            "Snapchat":       0.05,
-            "Spotify Ads":    0.05,
-        }
+    if not meta_api_available():
+        return {"ok": False, "error": "Meta token or ad account missing"}
 
+    ad_account_id = META_AD_ACCOUNT  # e.g. "act_1234567890"
+    token = META_TOKEN
 
-# -------------------------
-# Meta API helpers (real calls, but guarded)
-# -------------------------
-def meta_connection_status():
-    if not META_TOKEN or not META_AD_ACCOUNT_ID:
-        return False, "Meta token or ad account ID is not set in Streamlit secrets."
-    try:
-        url = f"https://graph.facebook.com/v20.0/act_{META_AD_ACCOUNT_ID}"
-        params = {"access_token": META_TOKEN, "fields": "id,account_status,name"}
-        r = requests.get(url, params=params, timeout=15)
-        if r.status_code != 200:
-            return False, f"Meta API error: {r.status_code} – {r.text[:200]}"
-        data = r.json()
-        return True, f"Connected to Meta Ad Account: {data.get('name','?')} (ID: {data.get('id')})"
-    except Exception as e:
-        return False, f"Meta connection exception: {e}"
+    url = f"https://graph.facebook.com/v19.0/{ad_account_id}/campaigns"
 
+    # Convert USD to minor currency units (e.g. cents)
+    daily_budget_minor = int(daily_budget_usd * 100)
 
-def meta_create_dummy_campaign(name: str, objective: str):
-    """
-    Example: create a PAUSED awareness campaign in Meta.
-    Only runs if token + ad account available.
-    """
-    if not META_TOKEN or not META_AD_ACCOUNT_ID:
-        return False, "Meta token or ad account ID not configured."
-
-    url = f"https://graph.facebook.com/v20.0/act_{META_AD_ACCOUNT_ID}/campaigns"
     payload = {
         "name": name,
-        "objective": objective,
+        "objective": objective,  # must be one of: OUTCOME_LEADS, OUTCOME_SALES, etc.
         "status": "PAUSED",
-        "special_ad_categories": "[]",
-        "access_token": META_TOKEN,
+        "special_ad_categories": [],
+        "daily_budget": daily_budget_minor,
     }
+
+    params = {"access_token": token}
+
+    resp = requests.post(url, data=payload, params=params, timeout=30)
     try:
-        r = requests.post(url, data=payload, timeout=20)
-        if r.status_code != 200:
-            return False, f"Meta create error: {r.status_code} – {r.text[:300]}"
-        data = r.json()
-        return True, f"Campaign created with ID: {data.get('id')}"
-    except Exception as e:
-        return False, f"Meta exception: {e}"
+        data = resp.json()
+    except Exception:
+        data = {"raw": resp.text}
+
+    if resp.status_code >= 300:
+        return {"ok": False, "status": resp.status_code, "response": data}
+    return {"ok": True, "status": resp.status_code, "response": data}
 
 
-# =====================================================================
-# UI LAYOUT
-# =====================================================================
-
-# ---------- Header with logo ----------
-logo_bytes = load_logo()
-with st.container():
-    st.markdown('<div class="main-header">', unsafe_allow_html=True)
-    col_logo, col_title = st.columns([1, 5])
-    with col_logo:
-        if logo_bytes:
-            st.image(logo_bytes, use_column_width=False, caption=None, output_format="PNG")
-        else:
-            st.markdown("🧠")
-    with col_title:
-        st.markdown("<h1>Sullivan's Omni-Channel Media Planner</h1>", unsafe_allow_html=True)
-        st.markdown(
-            "<p>Music • Clothing Brands • Local Home Care — built-in brain for reach, conversions & ROI estimates.</p>",
-            unsafe_allow_html=True
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ---------- Sidebar: Inputs ----------
+# ==========================
+# Sidebar — Inputs
+# ==========================
 with st.sidebar:
-    st.markdown("### 🧩 Setup")
+    st.header("Planning Inputs")
 
-    niche = st.selectbox(
-        "Main Vertical",
-        ["Music / Artists", "Clothing Brand", "Local Home Care", "Other"],
-        index=0
-    )
-    primary_goal = st.selectbox(
-        "Primary Goal",
-        ["Awareness", "Traffic", "Leads / Conversions", "Sales"],
-        index=0
-    )
+    niche = st.selectbox("Niche", NICHES, index=0)
+    primary_goal = st.selectbox("Primary Goal", GOALS, index=0)
     monthly_budget = st.number_input("Monthly Ad Budget (USD)", min_value=100.0, value=2500.0, step=50.0)
-    avg_revenue = st.number_input(
-        "Avg Revenue per Conversion (USD)",
-        min_value=1.0,
-        value=80.0,
-        step=5.0,
-        help="Average revenue per sale/lead. Used for ROI estimates."
+    avg_revenue = st.number_input("Avg Revenue Per Customer (USD)", min_value=1.0, value=80.0, step=1.0)
+
+    st.markdown("### Geography")
+    country_choice = st.selectbox(
+        "Main Country",
+        ["Worldwide", "United States", "Canada", "United Kingdom", "Australia", "Other"],
+        index=0,
+    )
+    custom_country = st.text_input("If 'Other', type country/region", value="")
+
+    if country_choice == "Worldwide":
+        country_label = "Worldwide"
+        trends_geo = ""  # worldwide for pytrends
+    elif country_choice == "Other":
+        country_label = custom_country or "Custom Region"
+        trends_geo = custom_country[:2].upper() if len(custom_country) >= 2 else ""
+    else:
+        country_label = country_choice
+        # rough ISO guess
+        mapping = {
+            "United States": "US",
+            "Canada": "CA",
+            "United Kingdom": "GB",
+            "Australia": "AU",
+        }
+        trends_geo = mapping.get(country_choice, "")
+
+    st.markdown("### Platforms")
+    selected_platforms = st.multiselect("Platforms to include", PLATFORMS, default=PLATFORMS)
+
+    st.markdown("### Competitor URLs")
+    comp_text = st.text_area(
+        "One per line",
+        placeholder="https://example.com\nhttps://competitor.com\nhttps://artist.com",
+        height=80,
+    )
+    competitors = [c.strip() for c in comp_text.splitlines() if c.strip()]
+
+    st.markdown("### Research Seeds (Google/TikTok/YouTube)")
+    seed_text = st.text_area(
+        "Trend seed terms (comma/newline). Leave blank to auto-fill by niche.",
+        placeholder="trap beats, drill music\nstreetwear\nhome care services",
+        height=80,
     )
 
-    st.markdown("### 🌍 Target Geography")
-    country_label = st.selectbox(
-        "Main Country / Region",
-        ["Worldwide", "United States", "Canada", "United Kingdom", "Australia", "European Union"],
-        index=0
-    )
-    country_iso_map = {
-        "Worldwide": "",
-        "United States": "US",
-        "Canada": "CA",
-        "United Kingdom": "GB",
-        "Australia": "AU",
-        "European Union": "EU",
-    }
-    geo_code = country_iso_map[country_label]
-
-    extra_geo_notes = st.text_input("Optional: Priority cities/regions", value="")
-
-    st.markdown("### 📈 Google Trends")
-    use_trends = st.checkbox("Boost with Google Trends (where available)", value=True)
-    timeframe = st.selectbox(
+    trends_timeframe = st.selectbox(
         "Trends timeframe",
         ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
-        index=2
-    )
-    trend_seeds_raw = st.text_area(
-        "Trend seed keywords (comma or newline)",
-        value="",
-        placeholder="trap beats, drill music, underground rapper\nstreetwear, vintage clothing\nhome care services"
+        index=2,
     )
 
-    st.markdown("### ⚙️ Meta API (FB/IG)")
-    st.caption("Uses Streamlit secrets: META_SYSTEM_USER_TOKEN, META_AD_ACCOUNT_ID, META_BUSINESS_ID, META_APP_ID, META_APP_SECRET.")
-    check_meta_api = st.checkbox("Check Meta connection / enable API actions", value=False)
-
-    run_plan = st.button("🧠 Generate Strategic Plan")
+    st.markdown("---")
+    run = st.button("🚀 Generate Strategic Plan", type="primary")
 
 
-# ---------- Helper: figure out Trends seeds ----------
-def build_trend_seed_list():
-    seeds = []
-    if trend_seeds_raw.strip():
-        # User-supplied seeds
-        for chunk in trend_seeds_raw.replace(",", "\n").split("\n"):
-            v = chunk.strip()
-            if v:
-                seeds.append(v)
-    else:
-        # Auto seeds based on niche
-        if "Music" in niche:
-            seeds = ["independent artist", "spotify promotion", "trap beats"]
-        elif "Clothing" in niche:
-            seeds = ["streetwear", "vintage clothing", "hoodies", "graphic tees"]
-        elif "Home Care" in niche:
-            seeds = ["home care services", "senior care", "caregiver near me"]
-        else:
-            seeds = ["online marketing", "digital ads"]
-    # Limit to ~5 seeds
-    return seeds[:5]
+# ==========================
+# Main logic
+# ==========================
+if run:
+    # Build seed terms
+    seed_terms = safe_split_list(seed_text)
+    if not seed_terms:
+        seed_terms = get_default_keywords_for_niche(niche)
 
+    trends_data = fetch_trends(seed_terms, trends_geo, timeframe=trends_timeframe)
 
-# =====================================================================
-# MAIN BODY
-# =====================================================================
-with st.container():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Channel Mix & Performance Estimates</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-subtitle">Modeled estimates only — not official forecasts. Use as a planning brain, not exact truth.</div>',
-        unsafe_allow_html=True
+    plan = build_strategy(
+        niche=niche,
+        monthly_budget=float(monthly_budget),
+        goal=primary_goal,
+        country=country_label,
+        platforms=selected_platforms or PLATFORMS,
+        avg_revenue=float(avg_revenue),
+        competitors=competitors,
+        trends=trends_data,
     )
 
-    if run_plan:
-        # ---- Trends (optional) ----
-        trends_data = {}
-        trend_seeds = build_trend_seed_list()
-        if use_trends:
-            if not HAS_TRENDS:
-                st.warning("Google Trends (pytrends) is not installed in this environment. Skipping trends.")
-            else:
-                trends_data = get_trends(trend_seeds, geo=geo_code, timeframe=timeframe)
-                if "error" in trends_data:
-                    st.warning(f"Trends error (rate limiting is common): {trends_data['error']}")
-                else:
-                    st.write(f"Using trend seeds: {', '.join(trend_seeds)}")
-                    if "interest_over_time" in trends_data:
-                        st.line_chart(trends_data["interest_over_time"])
+    # ==========================
+    # Tabs
+    # ==========================
+    tab_summary, tab_platforms, tab_trends, tab_meta = st.tabs(
+        ["📋 Summary", "📊 Platforms", "📈 Trends & Research", "🧷 Meta API"]
+    )
 
-        # ---- Build platform estimates ----
-        goal_label = primary_goal
-        bmarks = platform_benchmarks(goal_label)
-        splits = split_budget(goal_label)
+    # --- Summary tab ---
+    with tab_summary:
+        overall = plan["overall"]
+        st.subheader("High-Level Plan")
 
-        rows = []
-        for platform, bench in bmarks.items():
-            share = splits.get(platform, 0.0)
-            perf = estimate_performance(
-                budget=monthly_budget,
-                share=share,
-                cpc=bench["cpc"],
-                ctr=bench["ctr"],
-                cvr=bench["cvr"],
-                avg_rev=avg_revenue,
-            )
-            rows.append({
-                "Platform": platform,
-                "Budget Share": f"{share*100:.0f}%",
-                "Spend ($)": round(perf["spend"], 2),
-                "Est Reach (impr.)": int(perf["impressions"]),
-                "Est Clicks": int(perf["clicks"]),
-                "Est Conversions": int(perf["conv"]),
-                "Est CPA ($)": round(perf["cpa"], 2) if perf["cpa"] else 0,
-                "ROAS (x)": round(perf["roas"], 2) if perf["roas"] else 0,
-                "ROI (%)": round(perf["roi"], 1),
-            })
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Monthly Budget (USD)", f"${overall['monthly_budget']:,.0f}")
+        col2.metric("Estimated Conversions", f"{overall['total_conversions']:.1f}")
+        col3.metric("Estimated Revenue", f"${overall['total_revenue']:,.0f}")
+        col4.metric("Estimated Profit", f"${overall['total_profit']:,.0f}")
 
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True)
-
-        # Summary: best & worst ROI platforms
-        if not df.empty:
-            best_row = df.loc[df["ROI (%)"].idxmax()]
-            worst_row = df.loc[df["ROI (%)"].idxmin()]
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Best estimated ROI platform**")
-                st.markdown(
-                    f"- {best_row['Platform']} — "
-                    f"<span class='metric-good'>ROI {best_row['ROI (%)']:.1f}%</span>, "
-                    f"CPA ${best_row['Est CPA ($)']:.2f}, "
-                    f"ROAS {best_row['ROAS (x)']:.2f}x",
-                    unsafe_allow_html=True
-                )
-            with col2:
-                st.markdown("**Lowest estimated ROI platform**")
-                st.markdown(
-                    f"- {worst_row['Platform']} — "
-                    f"<span class='metric-bad'>ROI {worst_row['ROI (%)']:.1f}%</span>, "
-                    f"CPA ${worst_row['Est CPA ($)']:.2f}, "
-                    f"ROAS {worst_row['ROAS (x)']:.2f}x",
-                    unsafe_allow_html=True
-                )
-
-        # ROI explanation
-        st.markdown("---")
         st.markdown(
-            "💡 **Why is ROI sometimes negative?**  \n"
-            "This bot compares your **avg revenue per conversion** vs. the **estimated CPA** for each platform.  \n"
-            "If CPA > revenue, ROI will be negative. Try: increasing lifetime value, tightening targeting, or shifting more budget to the best-ROI channels."
+            f"""
+            **Niche:** {overall['niche']}  
+            **Primary Goal:** {overall['goal'].title()}  
+            **Country / Region:** {overall['country']}  
+            **Platforms:** {", ".join(overall['platforms'])}
+            """
         )
 
-        # Export plan JSON
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        export = {
-            "timestamp_utc": ts,
-            "niche": niche,
-            "primary_goal": primary_goal,
-            "monthly_budget": monthly_budget,
-            "avg_revenue_per_conversion": avg_revenue,
-            "geo_label": country_label,
-            "geo_code": geo_code,
-            "trend_seeds": trend_seeds,
-            "platform_estimates": rows,
-        }
-        buf = io.StringIO()
-        json.dump(export, buf, indent=2)
-        st.download_button(
-            "⬇️ Download Plan JSON",
-            data=buf.getvalue(),
-            file_name=f"sullivan_plan_{ts}.json",
-            mime="application/json"
-        )
-    else:
-        st.info("Set your niche, goal, budget, and click **🧠 Generate Strategic Plan** to see multi-platform estimates.")
+        st.markdown("### ROI Snapshot by Platform")
+        st.dataframe(plan["platform_df"][[
+            "platform", "budget_share_pct", "impressions", "reach_estimate",
+            "clicks", "conversions", "revenue", "profit", "roi", "roas"
+        ]])
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    # --- Platforms tab ---
+    with tab_platforms:
+        st.subheader("Channel-Level Breakdown")
 
+        st.dataframe(plan["platform_df"])
 
-# =====================================================================
-# Meta API Section (Real Calls, but Safe + Optional)
-# =====================================================================
-with st.container():
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🧷 Meta (Facebook / Instagram) API</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-subtitle">Connect your Meta Marketing API via Streamlit secrets to inspect accounts and create PAUSED test campaigns.</div>',
-        unsafe_allow_html=True
-    )
+        st.markdown("""
+        **How to use this:**
+        - Use reach + conversions to decide which platforms to scale.
+        - If ROI is negative for a platform, consider:
+          - Improving creative/landing page.
+          - Tightening audience.
+          - Increasing average revenue per customer (upsells, bundles).
+        """)
 
-    if check_meta_api:
-        ok, msg = meta_connection_status()
-        if ok:
-            st.success(msg)
+    # --- Trends & Research tab ---
+    with tab_trends:
+        st.subheader("Google Trends & Keyword Ideas")
+
+        if trends_data.get("error"):
+            st.warning(f"Trends error: {trends_data['error']}")
         else:
-            st.error(msg)
+            iot = trends_data.get("interest_over_time")
+            if isinstance(iot, pd.DataFrame):
+                st.write("**Interest Over Time**")
+                st.line_chart(iot)
 
-        st.markdown("**Create a PAUSED test campaign (optional)**")
-        camp_name = st.text_input("Campaign Name", value="Sully Test Campaign")
+            by_region = trends_data.get("by_region")
+            if isinstance(by_region, pd.DataFrame):
+                st.write("**Top Regions by Interest**")
+                st.dataframe(by_region.head(20))
+
+            suggestions = trends_data.get("related_suggestions", [])
+            if suggestions:
+                st.write("**Related Rising/Top Queries (use as ad keywords, interests, or video topics)**")
+                st.dataframe(pd.DataFrame({"Query": suggestions[:50]}))
+
+        st.markdown("---")
+        st.markdown("### Practical Use")
+        st.markdown("""
+        - **Meta / TikTok / Snapchat**:  
+          Use Trends queries as **interest keywords**, reel themes, hook ideas.
+        - **Google Search / YouTube**:  
+          Use them as **search keywords** and **video titles**.
+        - **Spotify / Music**:  
+          Use music-related trends to choose **genres**, **moods**, and **playlist themes**.
+        """)
+
+    # --- Meta API tab ---
+    with tab_meta:
+        st.subheader("Meta (FB + IG) Campaign Creator (API Hook)")
+
+        if not meta_api_available():
+            st.warning(
+                "Meta API not fully configured. Set `META_SYSTEM_USER_TOKEN` and "
+                "`META_AD_ACCOUNT_ID` in your Streamlit secrets to enable live campaign creation."
+            )
+        else:
+            st.success("Meta API token and ad account detected.")
+
+        st.markdown("#### Campaign Setup")
+        default_campaign_name = f"Sully_{primary_goal}_{niche.replace(' ', '')}_{datetime.utcnow().strftime('%Y%m%d')}"
+        mc_name = st.text_input("Campaign Name", value=default_campaign_name)
+
         objective = st.selectbox(
-            "Meta Campaign Objective",
-            ["AWARENESS", "TRAFFIC", "CONVERSIONS", "LEAD_GENERATION"],
-            index=0
+            "Meta Outcome Objective",
+            [
+                "OUTCOME_AWARENESS",
+                "OUTCOME_TRAFFIC",
+                "OUTCOME_ENGAGEMENT",
+                "OUTCOME_LEADS",
+                "OUTCOME_SALES",
+                "OUTCOME_APP_PROMOTION",
+            ],
+            index=0,
         )
-        if st.button("🚀 Create Meta Campaign (PAUSED)"):
-            success, info = meta_create_dummy_campaign(camp_name, objective)
-            if success:
-                st.success(info)
+
+        daily_budget_meta = st.number_input(
+            "Daily Budget for this Meta Campaign (USD)",
+            min_value=5.0,
+            value=float(max(5.0, monthly_budget / 30.0)),
+            step=1.0,
+        )
+
+        if st.button("🧷 Create Meta Campaign via API"):
+            if not meta_api_available():
+                st.error("Meta token or Ad Account ID missing in secrets. Cannot call API.")
             else:
-                st.error(info)
-    else:
-        st.info(
-            "To enable Meta API: set `META_SYSTEM_USER_TOKEN`, `META_AD_ACCOUNT_ID`, "
-            "`META_BUSINESS_ID`, `META_APP_ID`, and `META_APP_SECRET` in your Streamlit secrets, "
-            "then tick the checkbox in the sidebar."
-        )
+                with st.spinner("Calling Meta API..."):
+                    result = create_meta_campaign(
+                        name=mc_name,
+                        objective=objective,
+                        daily_budget_usd=daily_budget_meta,
+                        country=country_label,
+                    )
+                if result.get("ok"):
+                    st.success(f"Campaign created! Response: {result['response']}")
+                else:
+                    st.error(f"Meta create error: {result}")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# Footer
-st.markdown(
-    "<p style='text-align:center; color:#94a3b8; font-size:0.8rem;'>"
-    "All performance numbers are modeled estimates for planning only — not official forecasts from Meta, Google, or any platform."
-    "</p>",
-    unsafe_allow_html=True
-)
+else:
+    st.info("👈 Set your inputs in the sidebar and click **'🚀 Generate Strategic Plan'** to get started.")
