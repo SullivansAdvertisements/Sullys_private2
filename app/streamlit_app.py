@@ -1,520 +1,310 @@
 # ==========================
-# Sully's Super Media Planner (Meta + Research)
+# Sully's Meta Super Bot (Meta-only)
+# Campaign + Ad Set + Ad Creator
 # ==========================
 
 import os
-import sys
-import base64
-from pathlib import Path
-from datetime import datetime
 import json
-import io
+from datetime import datetime
 
-import requests
 import streamlit as st
 import pandas as pd
+from dotenv import load_dotenv
 
-# ---------- Optional: Google Trends (if installed) ----------
-try:
-    from pytrends.request import TrendReq
-    HAS_TRENDS = True
-except ImportError:
-    HAS_TRENDS = False
+# Facebook Business SDK
+from facebook_business.api import FacebookAdsApi
+from facebook_business.adobjects.adaccount import AdAccount
+from facebook_business.adobjects.campaign import Campaign
+from facebook_business.adobjects.adset import AdSet
+from facebook_business.adobjects.adcreative import AdCreative
+from facebook_business.adobjects.ad import Ad
 
-# ---------- Assets ----------
-APP_DIR = Path(__file__).resolve().parent
-HEADER_BG = APP_DIR / "header_bg.png"
-SIDEBAR_BG = APP_DIR / "sidebar_bg.png"
-LOGO_PATH = APP_DIR / "sullivans_logo.png"
+# =========== CONFIG / SECRETS ===========
 
-# ---------- Meta API config (Streamlit secrets or env) ----------
-META_TOKEN = st.secrets.get("META_SYSTEM_USER_TOKEN", os.getenv("META_SYSTEM_USER_TOKEN"))
-META_AD_ACCOUNT_ID = st.secrets.get("META_AD_ACCOUNT_ID", os.getenv("META_AD_ACCOUNT_ID"))
-META_BUSINESS_ID = st.secrets.get("META_BUSINESS_ID", os.getenv("META_BUSINESS_ID"))
-META_APP_ID = st.secrets.get("META_APP_ID", os.getenv("META_APP_ID"))
-META_APP_SECRET = st.secrets.get("META_APP_SECRET", os.getenv("META_APP_SECRET"))
+st.set_page_config(page_title="Sully's Meta Campaign Builder", page_icon="🌺", layout="wide")
 
-# ==========================
-# Helpers
-# ==========================
+# Load .env locally if present (optional)
+load_dotenv()
 
-def img_to_base64(path: Path) -> str | None:
-    if not path.exists():
-        return None
-    try:
-        data = path.read_bytes()
-        return base64.b64encode(data).decode("utf-8")
-    except Exception:
-        return None
+def get_secret(key: str, fallback: str = "") -> str:
+    # Prefer Streamlit secrets, fallback to environment vars for local dev
+    if key in st.secrets:
+        return st.secrets[key]
+    return os.getenv(key, fallback)
 
-def inject_theme_css():
-    """Light theme, 3D header & sidebar backgrounds, white font in sidebar."""
-    header_b64 = img_to_base64(HEADER_BG)
-    sidebar_b64 = img_to_base64(SIDEBAR_BG)
+META_APP_ID = get_secret("META_APP_ID")
+META_APP_SECRET = get_secret("META_APP_SECRET")
+META_SYSTEM_USER_TOKEN = get_secret("META_SYSTEM_USER_TOKEN")
+META_AD_ACCOUNT_ID = get_secret("META_AD_ACCOUNT_ID")  # should look like "act_123..."
+META_PAGE_ID = get_secret("META_PAGE_ID")
 
-    header_css = ""
-    if header_b64:
-        header_css = f"""
-        [data-testid="stHeader"] {{
-            background-image: url("data:image/png;base64,{header_b64}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            color: #ffffff;
-        }}
-        [data-testid="stHeader"] * {{
-            color: #ffffff !important;
-        }}
-        """
+missing = []
+for k, v in [
+    ("META_APP_ID", META_APP_ID),
+    ("META_APP_SECRET", META_APP_SECRET),
+    ("META_SYSTEM_USER_TOKEN", META_SYSTEM_USER_TOKEN),
+    ("META_AD_ACCOUNT_ID", META_AD_ACCOUNT_ID),
+    ("META_PAGE_ID", META_PAGE_ID),
+]:
+    if not v:
+        missing.append(k)
 
-    sidebar_css = ""
-    if sidebar_b64:
-        sidebar_css = f"""
-        [data-testid="stSidebar"] {{
-            background-image: url("data:image/png;base64,{sidebar_b64}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-color: #02040a;
-        }}
-        [data-testid="stSidebar"] * {{
-            color: #ffffff !important;
-        }}
-        """
-
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background-color: #f5f6fb;
-        }}
-        {header_css}
-        {sidebar_css}
-
-        /* Cards & text */
-        .sully-card {{
-            background: rgba(255,255,255,0.98);
-            border-radius: 18px;
-            padding: 18px 20px;
-            box-shadow: 0 14px 30px rgba(0,0,0,0.08);
-            margin-bottom: 16px;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
+if missing:
+    st.error(
+        "❌ Missing Meta credentials: "
+        + ", ".join(missing)
+        + ".\n\nSet them in Streamlit secrets or environment variables before using the bot."
     )
 
-def split_list(raw: str) -> list[str]:
-    if not raw:
-        return []
-    parts = []
-    for chunk in raw.replace(",", "\n").split("\n"):
-        v = chunk.strip()
-        if v:
-            parts.append(v)
-    seen, out = set(), []
-    for p in parts:
-        if p not in seen:
-            seen.add(p)
-            out.append(p)
-    return out
+# =========== INIT META API ===========
 
-# ---------- Meta objective mapping ----------
+def init_meta():
+    """Initialize Facebook Marketing API."""
+    if not META_SYSTEM_USER_TOKEN or not META_APP_ID or not META_APP_SECRET:
+        raise RuntimeError("Meta credentials missing.")
+    FacebookAdsApi.init(
+        app_id=META_APP_ID,
+        app_secret=META_APP_SECRET,
+        access_token=META_SYSTEM_USER_TOKEN,
+    )
+    return AdAccount(META_AD_ACCOUNT_ID)
 
-def map_goal_to_meta_objective(goal: str) -> str:
-    """
-    Map our primary goal to Meta outcome objective (as per latest error message).
-    """
-    goal = (goal or "").lower()
-    if "lead" in goal:
-        return "OUTCOME_LEADS"
-    if "sale" in goal or "purchase" in goal or "conversion" in goal:
-        return "OUTCOME_SALES"
-    if "awareness" in goal or "reach" in goal:
-        return "OUTCOME_AWARENESS"
-    if "traffic" in goal or "visit" in goal:
-        return "OUTCOME_TRAFFIC"
-    if "app" in goal:
-        return "OUTCOME_APP_PROMOTION"
-    if "engagement" in goal or "video" in goal:
-        return "OUTCOME_ENGAGEMENT"
-    # default:
-    return "OUTCOME_AWARENESS"
 
-# ---------- Meta API call (Campaign only for now) ----------
+# =========== HELPERS ===========
 
-def meta_is_configured() -> bool:
-    return bool(META_TOKEN and META_AD_ACCOUNT_ID)
+OBJECTIVE_MAP = {
+    "Awareness": "OUTCOME_AWARENESS",
+    "Traffic": "OUTCOME_TRAFFIC",
+    "Engagement": "OUTCOME_ENGAGEMENT",
+    "Leads": "OUTCOME_LEADS",
+    "Sales": "OUTCOME_SALES",
+    "App promotion": "OUTCOME_APP_PROMOTION",
+}
 
-def meta_create_campaign(
-    name: str,
-    objective: str,
-    status: str = "PAUSED",
-    special_ad_categories: list[str] | None = None,
-) -> dict:
-    """
-    Create a basic Meta campaign using Outcome-driven objective.
-    """
-    if not meta_is_configured():
-        return {"error": "Meta API credentials not configured."}
+OPTIMIZATION_MAP = {
+    "Awareness": "REACH",
+    "Traffic": "LINK_CLICKS",
+    "Engagement": "POST_ENGAGEMENT",
+    "Leads": "LEAD_GENERATION",
+    "Sales": "OFFSITE_CONVERSIONS",
+    "App promotion": "APP_INSTALLS",
+}
 
-    account_id = META_AD_ACCOUNT_ID
-    token = META_TOKEN
 
-    url = f"https://graph.facebook.com/v21.0/act_{account_id}/campaigns"
+def usd_to_cents(usd: float) -> int:
+    """Meta wants daily budget in *cents*."""
+    return int(round(usd * 100))
 
-    payload = {
-        "name": name,
-        "objective": objective,  # one of OUTCOME_*
-        "status": status,
+
+# =========== STREAMLIT UI ===========
+
+st.title("🌺 Sully’s Meta Campaign Builder")
+st.caption("Build real Meta (Facebook + Instagram) campaigns with Campaign + Ad Set + Ad in one flow.")
+
+st.markdown("---")
+
+col_main, col_side = st.columns([2, 1])
+
+with col_main:
+    st.subheader("1️⃣ Campaign Setup")
+
+    campaign_name = st.text_input("Campaign Name", value="Sully Auto Campaign")
+    objective_label = st.selectbox(
+        "Primary Objective",
+        ["Awareness", "Traffic", "Engagement", "Leads", "Sales", "App promotion"],
+        index=0,
+    )
+    objective = OBJECTIVE_MAP[objective_label]
+
+    buying_type = st.selectbox("Buying Type", ["AUCTION"], index=0)
+
+with col_side:
+    st.subheader("2️⃣ Budget & Schedule")
+
+    daily_budget_usd = st.number_input("Daily Budget (USD)", min_value=1.0, value=20.0, step=1.0)
+    start_date = st.date_input("Start Date", datetime.utcnow())
+    # For now we’ll make ad sets with no end date (you can pause in UI)
+
+st.markdown("---")
+
+st.subheader("3️⃣ Targeting")
+
+col_t1, col_t2 = st.columns(2)
+with col_t1:
+    countries_raw = st.text_input("Countries (comma separated)", value="US")
+    min_age = st.number_input("Min Age", 13, 65, 18)
+    max_age = st.number_input("Max Age", 13, 65, 55)
+with col_t2:
+    genders_label = st.selectbox("Genders", ["All", "Male", "Female"], index=0)
+    detailed_targeting = st.text_area(
+        "Interests / Keywords (optional, comma separated)",
+        placeholder="streetwear, hip hop, independent artist, home care services",
+    )
+
+if genders_label == "All":
+    genders = []
+elif genders_label == "Male":
+    genders = [1]
+else:
+    genders = [2]
+
+countries = [c.strip().upper() for c in countries_raw.split(",") if c.strip()]
+
+interests_list = [
+    x.strip() for x in detailed_targeting.split(",") if x.strip()
+]
+
+
+st.markdown("---")
+
+st.subheader("4️⃣ Creative (Ad)")
+
+col_c1, col_c2 = st.columns(2)
+with col_c1:
+    ad_name = st.text_input("Ad Name", value="Sully Auto Ad 1")
+    primary_text = st.text_area(
+        "Primary Text",
+        value="Tap to discover the latest drops and campaigns powered by Sully’s Marketing Bot.",
+    )
+    headline = st.text_input("Headline", value="Discover What Sully Can Do For You")
+with col_c2:
+    description = st.text_input("Description", value="Smart marketing across Meta with one bot.")
+    website_url = st.text_input("Destination URL", value="https://example.com")
+    image_url = st.text_input(
+        "Image URL (for link ad)",
+        value="https://via.placeholder.com/1080x1080.png?text=Sully+Ad",
+    )
+
+st.info("ℹ️ Your Meta Page ID is read from secrets and used as the Facebook Page for this ad.")
+
+st.markdown("---")
+
+do_create = st.button("🚀 Create Campaign + Ad Set + Ad")
+
+
+# =========== META CREATION LOGIC ===========
+
+def build_targeting():
+    targeting = {
+        "geo_locations": {"countries": countries},
+        "age_min": int(min_age),
+        "age_max": int(max_age),
     }
-    if special_ad_categories:
-        payload["special_ad_categories"] = special_ad_categories
+    if genders:
+        targeting["genders"] = genders
 
-    try:
-        resp = requests.post(
-            url,
-            data=payload,
-            params={"access_token": token},
-            timeout=20,
-        )
-        data = resp.json()
-        if resp.status_code >= 400:
-            return {"error": f"{resp.status_code}", "details": data}
-        return data
-    except Exception as e:
-        return {"error": "request_failed", "details": str(e)}
+    if interests_list:
+        # NOTE: For real interest targeting, you must look up interest IDs first.
+        # Here we only attach them as flexible_spec keywords for you to refine later.
+        targeting["flexible_spec"] = [
+            {"interests": [{"id": "6000000000000", "name": kw} for kw in interests_list]}
+        ]
+    return targeting
 
-# ---------- Optional: Google Trends helper ----------
 
-if HAS_TRENDS:
-    @st.cache_data(ttl=3600, show_spinner=False)
-    def get_trends(seed_terms, geo="US", timeframe="today 12-m", gprop=""):
-        if not seed_terms:
-            return {}
+def create_meta_campaign(ad_account: AdAccount):
+    params = {
+        Campaign.Field.name: campaign_name,
+        Campaign.Field.objective: objective,
+        Campaign.Field.status: Campaign.Status.paused,  # start paused
+        "special_ad_categories": [],
+        "buying_type": buying_type,
+    }
+    campaign = ad_account.create_campaign(params=params)
+    return campaign[Campaign.Field.id]
+
+
+def create_meta_adset(ad_account: AdAccount, campaign_id: str):
+    optimization_goal = OPTIMIZATION_MAP[objective_label]
+    today = start_date.strftime("%Y-%m-%d")
+
+    targeting = build_targeting()
+
+    params = {
+        AdSet.Field.name: f"{campaign_name} - AdSet",
+        AdSet.Field.campaign_id: campaign_id,
+        AdSet.Field.daily_budget: usd_to_cents(daily_budget_usd),
+        AdSet.Field.billing_event: AdSet.BillingEvent.impressions,
+        AdSet.Field.optimization_goal: optimization_goal,
+        AdSet.Field.bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+        AdSet.Field.status: AdSet.Status.paused,
+        AdSet.Field.start_time: f"{today}T00:00:00",
+        AdSet.Field.targeting: targeting,
+    }
+    adset = ad_account.create_ad_set(params=params)
+    return adset[AdSet.Field.id]
+
+
+def create_meta_creative(ad_account: AdAccount):
+    """
+    Simplest possible link ad creative:
+    - Uses your Page ID
+    - Single image + link
+    """
+    link_data = {
+        "message": primary_text,
+        "link": website_url,
+        "caption": website_url,
+        "name": headline,
+        "description": description,
+        "picture": image_url,
+    }
+
+    object_story_spec = {
+        "page_id": META_PAGE_ID,
+        "link_data": link_data,
+    }
+
+    params = {
+        AdCreative.Field.name: f"{ad_name} Creative",
+        AdCreative.Field.object_story_spec: object_story_spec,
+    }
+    creative = ad_account.create_ad_creative(params=params)
+    return creative[AdCreative.Field.id]
+
+
+def create_meta_ad(ad_account: AdAccount, adset_id: str, creative_id: str):
+    params = {
+        Ad.Field.name: ad_name,
+        Ad.Field.adset_id: adset_id,
+        Ad.Field.creative: {"creative_id": creative_id},
+        Ad.Field.status: Ad.Status.paused,  # start paused
+    }
+    ad = ad_account.create_ad(params=params)
+    return ad[Ad.Field.id]
+
+
+if do_create:
+    if missing:
+        st.error("❌ You must fix the missing Meta secrets above before creating campaigns.")
+    else:
         try:
-            pytrends = TrendReq(hl="en-US", tz=360)
-            pytrends.build_payload(seed_terms, timeframe=timeframe, geo=geo, gprop=gprop)
+            acct = init_meta()
+            with st.spinner("Creating campaign on Meta..."):
+                campaign_id = create_meta_campaign(acct)
+            st.success(f"✅ Campaign created: {campaign_id}")
 
-            out = {}
-            iot = pytrends.interest_over_time()
-            if isinstance(iot, pd.DataFrame) and not iot.empty:
-                if "isPartial" in iot.columns:
-                    iot = iot.drop(columns=["isPartial"])
-                out["interest_over_time"] = iot
+            with st.spinner("Creating ad set..."):
+                adset_id = create_meta_adset(acct, campaign_id)
+            st.success(f"✅ Ad Set created: {adset_id}")
 
-            by_region = pytrends.interest_by_region(
-                resolution="REGION", inc_low_vol=True, inc_geo_code=True
-            )
-            if isinstance(by_region, pd.DataFrame) and not by_region.empty:
-                first = seed_terms[0]
-                if first in by_region.columns:
-                    by_region = by_region.sort_values(first, ascending=False)
-                out["by_region"] = by_region
+            with st.spinner("Creating ad creative..."):
+                creative_id = create_meta_creative(acct)
+            st.success(f"✅ Ad Creative created: {creative_id}")
 
-            rq = pytrends.related_queries()
-            suggestions = []
-            if isinstance(rq, dict):
-                for term, buckets in rq.items():
-                    for key in ("top", "rising"):
-                        df = buckets.get(key)
-                        if isinstance(df, pd.DataFrame) and "query" in df.columns:
-                            suggestions.extend(df["query"].dropna().astype(str).tolist())
-            seen, uniq = set(), []
-            for s in suggestions:
-                if s not in seen:
-                    seen.add(s)
-                    uniq.append(s)
-            out["related_suggestions"] = uniq[:100]
-            return out
-        except Exception as e:
-            return {"error": str(e)}
-else:
-    def get_trends(*args, **kwargs):
-        return {"error": "pytrends not installed"}
+            with st.spinner("Creating ad..."):
+                ad_id = create_meta_ad(acct, adset_id, creative_id)
+            st.success(f"🎉 Ad created: {ad_id}")
 
-
-# ---------- Strategy "brain" (simple heuristic) ----------
-
-def generate_strategy(niche: str, budget: float, goal: str, geo: str, competitors: list[str]) -> dict:
-    """
-    Simple planner that returns a plan for Meta + other platforms.
-    No fake ROI math; just splits & messaging ideas.
-    """
-    niche = niche.lower()
-    goal = goal.lower()
-
-    # Budget split by platform (just used to inform user, not a calculator)
-    if niche == "music":
-        split = {
-            "Meta (FB + IG)": 0.35,
-            "TikTok Ads": 0.30,
-            "YouTube Ads": 0.20,
-            "Spotify Ads": 0.10,
-            "X / Twitter Ads": 0.05,
-        }
-    elif niche == "clothing":
-        split = {
-            "Meta (FB + IG)": 0.40,
-            "TikTok Ads": 0.30,
-            "Google Search": 0.15,
-            "YouTube Ads": 0.10,
-            "X / Twitter Ads": 0.05,
-        }
-    else:  # home care default
-        split = {
-            "Google Search": 0.45,
-            "Meta (FB + IG)": 0.30,
-            "YouTube Ads": 0.15,
-            "X / Twitter Ads": 0.10,
-        }
-
-    platforms = []
-    for name, pct in split.items():
-        platforms.append(
-            {
-                "name": name,
-                "monthly_budget": round(budget * pct, 2),
-                "objective": goal.title(),
-                "geo": geo,
+            result = {
+                "campaign_id": campaign_id,
+                "adset_id": adset_id,
+                "creative_id": creative_id,
+                "ad_id": ad_id,
             }
-        )
+            st.subheader("Meta Objects Created")
+            st.json(result)
 
-    # Very light "estimates" text, not a calculator:
-    est_notes = []
-    for p in platforms:
-        est_notes.append(
-            f"- **{p['name']}**: Use {p['objective']} objective with ~${p['monthly_budget']:.0f}/mo in {p['geo']}."
-        )
-
-    plan = {
-        "niche": niche,
-        "geo": geo,
-        "goal": goal,
-        "platforms": platforms,
-        "meta_objective": map_goal_to_meta_objective(goal),
-        "notes": est_notes,
-        "competitors": competitors,
-    }
-    return plan
-
-
-# ==========================
-# UI
-# ==========================
-
-st.set_page_config(
-    page_title="Sully's Media Brain",
-    page_icon="🌺",
-    layout="wide",
-)
-
-inject_theme_css()
-
-# ---------- Sidebar ----------
-with st.sidebar:
-    # Logo at top (transparent)
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), use_column_width=True)
-
-    st.markdown("### 🎛️ Controls")
-
-    niche = st.selectbox(
-        "Niche",
-        ["Music", "Clothing Brand", "Local Home Care"],
-        index=0,
-    )
-
-    goal = st.selectbox(
-        "Primary Goal",
-        ["Awareness", "Traffic", "Leads", "Sales / Purchases", "Engagement"],
-        index=0,
-    )
-
-    budget = st.number_input(
-        "Total Monthly Ad Budget (USD)",
-        min_value=50.0,
-        value=2000.0,
-        step=50.0,
-    )
-
-    st.markdown("### 🌍 Geography")
-    country = st.selectbox(
-        "Main Country",
-        ["Worldwide", "United States", "Canada", "United Kingdom", "Australia", "Custom text"],
-        index=0,
-    )
-    if country == "Custom text":
-        country = st.text_input("Enter Country/Region", value="Worldwide")
-
-    cities_raw = st.text_area(
-        "Priority cities/regions (optional)",
-        placeholder="New York\nLos Angeles\nMiami",
-    )
-
-    st.markdown("### 🕵️ Competitors (optional)")
-    comp_text = st.text_area(
-        "Competitor URLs (one per line)",
-        placeholder="https://example-competitor.com\nhttps://another-brand.com",
-    )
-    competitors = [c.strip() for c in comp_text.split("\n") if c.strip()]
-
-    st.markdown("### 📈 Research options")
-    use_trends = st.checkbox("Use Google Trends (if available)", value=True)
-
-    st.markdown("### 🧠 Meta API")
-    use_meta_api = st.checkbox("Create real Meta campaign when I click Build", value=False)
-    if not meta_is_configured():
-        st.caption(
-            "⚠️ Meta API not configured yet. "
-            "Add META_SYSTEM_USER_TOKEN and META_AD_ACCOUNT_ID to Streamlit secrets."
-        )
-
-    build = st.button("🚀 Build Strategy & (Optionally) Push to Meta")
-
-
-# ---------- Main layout ----------
-st.markdown("## 🌺 Sullivan’s Super Media Brain")
-
-if LOGO_PATH.exists():
-    st.image(str(LOGO_PATH), width=80)
-
-st.write(
-    "Mini media planner for **Music**, **Clothing brands**, and **Local Home Care** that plans across "
-    "Meta, TikTok, Google, YouTube and more — with optional Google Trends and real Meta API calls."
-)
-
-# Build plan on click
-if build:
-    geo_desc = country
-    cities = split_list(cities_raw)
-    if cities:
-        geo_desc += f" (focus on: {', '.join(cities[:5])})"
-
-    # 1) Base strategy
-    plan = generate_strategy(niche, float(budget), goal, geo_desc, competitors)
-
-    # 2) Optional Google Trends enrichment
-    trends_block = None
-    if use_trends:
-        if not HAS_TRENDS:
-            st.warning("pytrends is not installed, so Google Trends isn’t available.")
-        else:
-            # pick seeds based on niche
-            if "music" in niche.lower():
-                seeds = ["independent artist", "spotify playlist", "trap music"]
-            elif "clothing" in niche.lower():
-                seeds = ["streetwear", "vintage clothing", "graphic tees"]
-            else:
-                seeds = ["home care services", "senior care", "caregiver near me"]
-
-            geo_code = "US" if "United States" in geo_desc else ""
-            trends_block = get_trends(seeds, geo=geo_code or "US", timeframe="today 12-m")
-            if "error" in trends_block and trends_block["error"]:
-                st.warning(f"Trends error: {trends_block['error']}")
-            else:
-                st.subheader("📈 Google Trends (signal only, no fake calculators)")
-                iot = trends_block.get("interest_over_time")
-                if isinstance(iot, pd.DataFrame) and not iot.empty:
-                    st.line_chart(iot)
-
-                rel = trends_block.get("related_suggestions") or []
-                if rel:
-                    st.write("Top related queries:")
-                    st.dataframe(pd.DataFrame({"Query": rel[:25]}))
-
-    # 3) Show per-platform plan
-    st.subheader("📊 Platform Plan (no fake ROI, just structured strategy)")
-
-    for plat in plan["platforms"]:
-        with st.container():
-            st.markdown('<div class="sully-card">', unsafe_allow_html=True)
-            st.markdown(f"### {plat['name']}")
-            st.markdown(
-                f"- **Monthly budget**: `${plat['monthly_budget']:.0f}`\n"
-                f"- **Objective**: `{plat['objective']}`\n"
-                f"- **Geo**: `{plat['geo']}`"
-            )
-
-            if "music" in niche.lower():
-                if "Meta" in plat["name"]:
-                    st.markdown(
-                        "- Use Reels + Feed video targeting fans of similar artists, playlists and genres.\n"
-                        "- Stack custom audiences: IG engagers, video viewers, and site visitors."
-                    )
-                elif "TikTok" in plat["name"]:
-                    st.markdown(
-                        "- Use sounds from your tracks + creator-style hooks.\n"
-                        "- Target interest clusters: ‘indie artists’, ‘trap’, ‘afrobeats’, etc."
-                    )
-            elif "clothing" in niche.lower():
-                if "Meta" in plat["name"]:
-                    st.markdown(
-                        "- Catalog/advantage+ shopping if available.\n"
-                        "- Show bestsellers, UGC try-ons, and seasonal drops."
-                    )
-                elif "Google Search" in plat["name"]:
-                    st.markdown(
-                        "- Focus keywords around your brand + ‘streetwear’, ‘graphic tees’, and local modifiers."
-                    )
-            else:  # home care
-                if "Google Search" in plat["name"]:
-                    st.markdown(
-                        "- Bid on ‘home care near me’, ‘in-home senior care’, ‘caregiver [city]’.\n"
-                        "- Use call extensions and local service info."
-                    )
-                elif "Meta" in plat["name"]:
-                    st.markdown(
-                        "- Use warm imagery of caregivers + families.\n"
-                        "- Layer by age, caregivers, local community groups (where allowed)."
-                    )
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    st.subheader("📝 Overall Notes")
-    for note in plan["notes"]:
-        st.write(note)
-
-    # 4) Optional Meta campaign creation (real API call)
-    if use_meta_api:
-        st.subheader("⚙️ Meta Campaign Creation")
-        if not meta_is_configured():
-            st.error("Meta API is not configured. Add credentials in Streamlit secrets.")
-        else:
-            meta_obj = plan["meta_objective"]
-            default_name = f"{niche} — {goal.title()} — {datetime.utcnow().strftime('%Y%m%d')}"
-            camp_name = st.text_input("Meta Campaign Name", value=default_name)
-            if st.button("Create Meta Campaign Now"):
-                res = meta_create_campaign(
-                    name=camp_name,
-                    objective=meta_obj,
-                    status="PAUSED",
-                )
-                if "error" in res:
-                    st.error(f"Meta create error: {res.get('error')} – {res.get('details')}")
-                else:
-                    st.success(f"✅ Meta campaign created with ID: {res.get('id')}")
-
-    # 5) Export summary JSON (no ROI math, just plan)
-    st.subheader("⬇️ Export Plan (JSON)")
-    summary = {
-        "niche": plan["niche"],
-        "goal": plan["goal"],
-        "geo": plan["geo"],
-        "budget_usd": budget,
-        "platforms": plan["platforms"],
-        "meta_objective": plan["meta_objective"],
-        "competitors": plan["competitors"],
-        "generated_at": datetime.utcnow().isoformat() + "Z",
-    }
-    buf = io.StringIO()
-    json.dump(summary, buf, indent=2)
-    st.download_button(
-        "Download media_plan.json",
-        data=buf.getvalue(),
-        file_name="media_plan.json",
-        mime="application/json",
-    )
-
-else:
-    st.info("Use the controls in the left sidebar, then click **“🚀 Build Strategy & (Optionally) Push to Meta”**.")
+            st.info("Everything is created in **PAUSED** status. Review & enable inside Meta Ads Manager.")
+        except Exception as e:
+            st.error(f"❌ Meta API error: {e}")
