@@ -290,17 +290,21 @@ def meta_create_campaign(name: str, objective: str, daily_budget_usd: float):
     if not ok:
         return {"error": msg}
 
-    url = f"{META_GRAPH_BASE}/act_{META_AD_ACCOUNT_ID}/campaigns"
+      url = f"{META_GRAPH_BASE}/act_{META_AD_ACCOUNT_ID}/campaigns"
     payload = {
         "name": name,
-        "objective": objective,  # e.g. OUTCOME_AWARENESS, OUTCOME_TRAFFIC
+        # Use the new outcome-based objectives you already pick in the UI:
+        # OUTCOME_AWARENESS, OUTCOME_TRAFFIC, OUTCOME_LEADS, OUTCOME_SALES, OUTCOME_ENGAGEMENT
+        "objective": objective,
         "status": "PAUSED",
         "special_ad_categories": "[]",
-        # Required if not using campaign budget, to avoid the previous error:
-        # "Must specify True or False in is_adset_budget_sharing_enabled..."
-        "is_adset_budget_sharing_enabled": "true",
+        "buying_type": "AUCTION",
+        # ❌ DO NOT set is_adset_budget_sharing_enabled here
+        # ❌ DO NOT set campaign-level budget from this simple helper
         "access_token": META_TOKEN,
     }
+ 
+
     try:
         resp = requests.post(url, data=payload, timeout=20)
         data = resp.json()
