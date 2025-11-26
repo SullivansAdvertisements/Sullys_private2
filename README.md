@@ -1,8 +1,12 @@
-# Sully's Bot — Campaign Development + Competitor Intelligence
+# Sully's Media Planner
 
-**Main file path:** `app/streamlit_app.py`
+Streamlit app that:
+- Builds media plans for Music, Clothing Brands, and Local Home Care
+- Uses Google Trends (if available) for keyword research
+- Talks to Meta (Facebook/Instagram) Graph API to create campaigns
 
-## New in this build
-- Campaign Development System per platform (Meta, Google Ads, TikTok, Twitter)
-- Competitor link analysis to auto-suggest **keywords** and **locations**
-- New niche: **Local Home Care** (elderly & special needs)
+## Run locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app/streamlit_app.py
