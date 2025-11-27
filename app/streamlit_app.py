@@ -1,8 +1,7 @@
 # Sully's Media Planner – Meta + Strategy + Google Trends (clean light theme)
 # - Tab 1: Strategy Planner (Music, Clothing, Home Care) + optional Google Trends
-# - Tab 2: Meta Campaign Builder (Campaign + Ad Set + Ad via Graph API)
-# - All Meta credentials pulled from st.secrets
-# - No fake ROI calculators: only real API responses (or errors) are shown.
+# - Tab 2: Meta Campaign Builder (Campaign + Ad Set + Ad via Graph API + creative generator)
+# - All Meta credentials pulled from st.secrets (no hardcoded tokens)
 
 import io
 import json
@@ -19,7 +18,6 @@ try:
     HAS_TRENDS = True
 except ImportError:
     HAS_TRENDS = False
-
 
 # -------------------------
 # Basic config + styling
@@ -178,7 +176,7 @@ def generate_strategy(niche, budget, goal, geo, competitors):
                 "campaign_idea": f"{niche.title()} – Core Keywords – Search",
                 "notes": [
                     "Use Exact + Phrase for tight control.",
-                    "Send to the most relevant landing page (not generic homepage if avoidable).",
+                    "Send to the most relevant landing page.",
                 ],
             },
             "tiktok": {
@@ -240,9 +238,7 @@ def get_trends(seed_terms, geo="US", timeframe="today 12-m", gprop=""):
                 for key in ("top", "rising"):
                     df = buckets.get(key)
                     if isinstance(df, pd.DataFrame) and "query" in df.columns:
-                        suggestions.extend(
-                            df["query"].dropna().astype(str).tolist()
-                        )
+                        suggestions.extend(df["query"].dropna().astype(str).tolist())
 
         seen = set()
         uniq = []
@@ -304,9 +300,8 @@ def meta_connection_status():
 
 def meta_create_campaign(name: str, objective: str):
     """
-    Create a Meta campaign via Graph API (campaign-level only).
-    We avoid is_adset_budget_sharing_enabled to dodge earlier error.
-    Budget is set at ad set level.
+    Create a Meta campaign via Graph API (campaign-level).
+    Budget is set at ad set level, so we keep this simple.
     """
     ok, msg = meta_connection_status()
     if not ok:
@@ -353,10 +348,7 @@ def meta_create_adset(
     age_max: int,
     objective: str,
 ):
-    """
-    Create an ad set under a campaign.
-    Uses pixel for conversion-related objectives; otherwise awareness/traffic-style.
-    """
+    """Create an ad set under a campaign."""
     ok, msg = meta_connection_status()
     if not ok:
         return {"error": msg}
@@ -411,7 +403,6 @@ def meta_create_ad(
     primary_text: str,
     headline: str,
     description: str,
-    image_url: str,
 ):
     """
     Create a creative + ad under an ad set.
@@ -474,6 +465,80 @@ def meta_create_ad(
         return {"creative": c_data, "ad": a_data}
     except Exception as e:
         return {"error": f"ad_exception: {e}"}
+
+
+# -------------------------
+# Creative generator for Meta
+# -------------------------
+def generate_meta_creatives(niche, goal, country, states, interests, offer, brand_name="Sully's"):
+    """
+    Generate a small table of creative ideas (primary text, headline, description, CTA, audience notes).
+    This does NOT hit the Meta API; it's planning output for you to copy.
+    """
+    niche = niche.lower()
+    goal = goal.lower()
+    base_audience = ", ".join(states) if states else country
+    interest_str = ", ".join(interests) if interests else "broad interests"
+
+    if niche == "music":
+        vibe = "new releases, unreleased snippets, studio content"
+    elif niche == "clothing":
+        vibe = "new drops, fit checks, streetwear looks"
+    elif niche == "homecare":
+        vibe = "trust, safety, family peace of mind"
+    else:
+        vibe = "your brand story and strongest value"
+
+    if goal == "awareness":
+        cta = "LEARN_MORE"
+        angle = "introduce the brand and story"
+    elif goal == "traffic":
+        cta = "LEARN_MORE"
+        angle = "drive clicks to key landing pages"
+    elif goal == "leads":
+        cta = "SIGN_UP"
+        angle = "push sign-ups or lead forms"
+    elif goal in ["conversions", "sales"]:
+        cta = "SHOP_NOW"
+        angle = "drive purchases with urgency"
+    else:
+        cta = "LEARN_MORE"
+        angle = "push engagement and discovery"
+
+    rows = []
+
+    # Idea 1 – Social proof
+    rows.append({
+        "Primary Text": f"{brand_name} is making noise in {base_audience}. Tap in for {vibe}. {offer}",
+        "Headline": f"{brand_name} – {goal.title()} in {base_audience}",
+        "Description": f"Built for people who live and breathe this culture.",
+        "CTA": cta,
+        "Suggested Audience": f"{base_audience} – interests in {interest_str}",
+        "Suggested Placement": "Feed + Reels (FB & IG)",
+    })
+
+    # Idea 2 – Scarcity / urgency
+    rows.append({
+        "Primary Text": f"Only a few spots / pieces left for {brand_name}. {offer}",
+        "Headline": "Don’t sleep on this drop",
+        "Description": "Once it’s gone, it’s gone.",
+        "CTA": cta,
+        "Suggested Audience": f"Engagers in last 30–90 days + Lookalikes",
+        "Suggested Placement": "Reels + Stories",
+    })
+
+    # Idea 3 – Education / value
+    rows.append({
+        "Primary Text": f"Here’s why {brand_name} hits different for {niche} in {base_audience}. {offer}",
+        "Headline": "Why this matters for you",
+        "Description": "Quick breakdown of what makes us different.",
+        "CTA": cta,
+        "Suggested Audience": f"{base_audience} – interests in {interest_str}",
+        "Suggested Placement": "Feed + In-Stream Video",
+    })
+
+    df = pd.DataFrame(rows)
+    return df
 
 
 # -------------------------
@@ -792,11 +857,9 @@ with tab_meta:
     with adc2:
         headline = st.text_input("Headline", value="New Collection Live")
         description = st.text_input("Description", value="Limited quantities, don’t sleep.")
-        image_url = st.text_input(
-            "Image URL",
-            value="https://example.com/sample-image.jpg",
-            help="Public image URL hosted on your site or CDN.",
-        )
+    ad_image_hint = st.caption(
+        "Image is configured inside the Page post / creative setup. For now, this builder focuses on text + structure."
+    )
 
     adset_id_for_ad = st.text_input(
         "Ad Set ID",
@@ -820,7 +883,6 @@ with tab_meta:
                 primary_text=primary_text,
                 headline=headline,
                 description=description,
-                image_url=image_url,
             )
         if "error" in result_ad and not result_ad.get("ad"):
             st.error("Meta API error while creating ad/creative:")
@@ -828,3 +890,70 @@ with tab_meta:
         else:
             st.success("✅ Ad creative + ad created.")
             st.json(result_ad)
+
+    # 5) Ad set & creative ideas (manual planning)
+    st.markdown("---")
+    st.markdown("#### 5. Ad Set & Creative Ideas (manual input into Meta)")
+
+    st.caption("Use this section to plan audiences + creatives. Copy/paste into Meta Ads Manager or your own API flow.")
+
+    ac1, ac2 = st.columns(2)
+    with ac1:
+        creative_niche = st.selectbox(
+            "Niche for this ad set",
+            ["Music", "Clothing", "Homecare"],
+            key="creative_niche"
+        )
+        creative_goal = st.selectbox(
+            "Goal for this ad set",
+            ["Awareness", "Traffic", "Leads", "Conversions", "Sales"],
+            key="creative_goal"
+        )
+        creative_country = st.text_input(
+            "Target Country (e.g., US, Worldwide)",
+            value="US",
+            key="creative_country"
+        )
+        creative_states_raw = st.text_area(
+            "Target States / Regions (comma or newline)",
+            placeholder="California, New York\nTexas",
+            key="creative_states"
+        )
+    with ac2:
+        interests_raw = st.text_area(
+            "Interests / Keywords (paste from Google Trends, TikTok, etc.)",
+            placeholder="streetwear, hip hop, sneakerheads\ntrap beats\nhome care services",
+            height=120,
+            key="creative_interests"
+        )
+        offer_text = st.text_input(
+            "Main Offer / Hook",
+            value="Limited time offer – tap to learn more.",
+            key="creative_offer"
+        )
+
+    if st.button("Generate Meta Ad Creative Ideas"):
+        states_list = parse_multiline(creative_states_raw)
+        interests_list = parse_multiline(interests_raw)
+
+        df_creatives = generate_meta_creatives(
+            niche=creative_niche,
+            goal=creative_goal,
+            country=creative_country,
+            states=states_list,
+            interests=interests_list,
+            offer=offer_text,
+            brand_name="Sully's"
+        )
+
+        st.success("Here are your ad ideas. Copy/paste into Meta Ads Manager (Ad level).")
+        st.dataframe(df_creatives)
+
+        csv_buf = io.StringIO()
+        df_creatives.to_csv(csv_buf, index=False)
+        st.download_button(
+            "⬇️ Download creatives.csv",
+            data=csv_buf.getvalue().encode("utf-8"),
+            file_name="meta_creatives.csv",
+            mime="text/csv"
+        )
