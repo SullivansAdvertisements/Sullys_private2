@@ -35,7 +35,4 @@ sullys_media_planner/
 │
 ├── assets/
 │ ├── sullivans_logo.png # logo shown in header/sidebar
-│ └── og_logo.png # logo for link preview (see below)
-│
-├── requirements.txt
-└── README.md
+│ └── 
