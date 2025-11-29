@@ -68,9 +68,9 @@ LOGO_PATH = APP_DIR / "sullivans_logo.png"
 
 def _file_exists(path: Path) -> bool:
 try:
-return path.exists()
+    return path.exists()
 except Exception:
-return False
+    return False
 
 
 # -------------------------
