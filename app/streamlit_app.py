@@ -1,186 +1,161 @@
-# ============================================================
-# Sully's Unified Multi-Platform Campaign Generator
-# ============================================================
-# This Streamlit app wires together the following clients:
-# - common_ai.py
-# - google_client.py
-# - meta_client.py
-# - spotify_client.py
-# - tiktok_client.py
-# - trends_client.py
-#
-# It is designed to WORK even if APIs are not fully configured,
-# by safely falling back to mock/demo outputs so tabs never render empty.
-# ============================================================
+# ==============================
+# STREAMLIT APP ENTRY POINT
+# ==============================
+
+import sys
+import os
+
+# Ensure app/ is treated as root (critical for Streamlit Cloud)
+sys.path.append(os.path.dirname(__file__))
 
 import streamlit as st
-from pathlib import Path
 
-# ---- Client Imports (safe) ----
-from clients.common_ai import generate_headlines, summarize_insights
-from clients.google_client import google_campaign_generator
-from clients.meta_client import meta_campaign_generator
-from clients.spotify_client import spotify_campaign_generator
-from clients.tiktok_client import tiktok_campaign_generator
-from clients.trends_client import cross_platform_trends
+# ==============================
+# IMPORT CLIENT MODULES
+# ==============================
 
-# ============================================================
-# PAGE CONFIG
-# ============================================================
+from clients.common_ai import (
+    generate_headlines,
+    summarize_insights
+)
+
+from clients.google_client import google_insights
+from clients.meta_client import meta_insights
+from clients.tiktok_client import tiktok_insights
+from clients.spotify_client import spotify_insights
+from clients.trends_client import trend_research
+
+# ==============================
+# STREAMLIT PAGE CONFIG
+# ==============================
+
 st.set_page_config(
-    page_title="Sullivan's Ads Super Generator",
-    page_icon="📈",
+    page_title="Sullivan’s Advertisements – Marketing AI",
     layout="wide"
 )
 
-APP_DIR = Path(__file__).parent
-ASSETS = APP_DIR / "assets"
-LOGO = ASSETS / "sullivans_logo.png"
-HEADER_BG = ASSETS / "header_bg.png"
-SIDEBAR_BG = ASSETS / "sidebar_bg.png"
+st.title("📊 Sullivan’s Advertisements – Marketing Research AI")
+st.caption("Unified research, trends & ad intelligence across platforms")
 
-# ============================================================
-# STYLES
-# ============================================================
-st.markdown(f"""
-<style>
-header {{
-    background-image: url("file://{HEADER_BG}");
-    background-size: cover;
-}}
-[data-testid="stSidebar"] {{
-    background-image: url("file://{SIDEBAR_BG}");
-    background-size: cover;
-}}
-.block-container {{ padding-top: 2rem; }}
-</style>
-""", unsafe_allow_html=True)
+# ==============================
+# SIDEBAR INPUTS
+# ==============================
 
-# ============================================================
-# HEADER
-# ============================================================
-col1, col2 = st.columns([1, 4])
-with col1:
-    if LOGO.exists():
-        st.image(str(LOGO), width=120)
-with col2:
-    st.title("Sullivan's Multi-Platform Ad Intelligence Bot")
-    st.caption("AI-powered research, planning & campaign generation")
-
-st.divider()
-
-# ============================================================
-# SIDEBAR INPUTS (GLOBAL)
-# ============================================================
 with st.sidebar:
-    st.header("Campaign Inputs")
-    brand = st.text_input("Brand / Product")
-    objective = st.selectbox("Primary Objective", [
-        "Awareness", "Traffic", "Leads", "Conversions", "Sales"
-    ])
-    daily_budget = st.slider("Daily Budget ($)", 10, 5000, 100)
-    seed_keywords = st.text_area(
-        "Seed Keywords / Interests",
-        "streetwear, hip hop culture, viral fashion"
+    st.header("🔍 Research Controls")
+
+    seed_input = st.text_input(
+        "Seed Keyword / Artist / Brand",
+        placeholder="e.g. streetwear brand, hip hop artist, local business"
     )
 
-# ============================================================
+    generate_btn = st.button("Run Research")
+
+# ==============================
 # TABS
-# ============================================================
-tab_trends, tab_google, tab_meta, tab_tiktok, tab_spotify, tab_ai = st.tabs([
-    "📊 Trends & Research",
-    "🔍 Google / YouTube",
-    "📘 Meta (Facebook / Instagram)",
-    "🎵 TikTok",
-    "🎧 Spotify",
-    "🧠 AI Strategy"
-])
+# ==============================
 
-# ============================================================
+tab_google, tab_meta, tab_tiktok, tab_spotify, tab_trends, tab_ai = st.tabs(
+    [
+        "Google",
+        "Meta",
+        "TikTok",
+        "Spotify",
+        "Trends",
+        "AI Summary"
+    ]
+)
+
+# ==============================
+# GOOGLE TAB
+# ==============================
+
+with tab_google:
+    st.subheader("Google Insights")
+
+    if generate_btn and seed_input:
+        data = google_insights(seed_input)
+        st.write(data)
+    else:
+        st.info("Enter a seed input and click Run Research.")
+
+# ==============================
+# META TAB
+# ==============================
+
+with tab_meta:
+    st.subheader("Meta (Facebook / Instagram) Insights")
+
+    if generate_btn and seed_input:
+        data = meta_insights(seed_input)
+        st.write(data)
+    else:
+        st.info("Waiting for input.")
+
+# ==============================
+# TIKTOK TAB
+# ==============================
+
+with tab_tiktok:
+    st.subheader("TikTok Insights")
+
+    if generate_btn and seed_input:
+        data = tiktok_insights(seed_input)
+        st.write(data)
+    else:
+        st.info("Waiting for input.")
+
+# ==============================
+# SPOTIFY TAB
+# ==============================
+
+with tab_spotify:
+    st.subheader("Spotify Insights")
+
+    if generate_btn and seed_input:
+        data = spotify_insights(seed_input)
+        st.write(data)
+    else:
+        st.info("Waiting for input.")
+
+# ==============================
 # TRENDS TAB
-# ============================================================
+# ==============================
+
 with tab_trends:
-    st.subheader("Cross-Platform Trend Intelligence")
+    st.subheader("Trend Research (1M – 5Y)")
 
-    if st.button("Run Trend Research"):
-        trends = cross_platform_trends(seed_keywords)
-        st.json(trends)
+    if generate_btn and seed_input:
+        data = trend_research(seed_input)
+        st.write(data)
+    else:
+        st.info("Waiting for input.")
 
-        summary = summarize_insights(trends)
-        st.markdown("### AI Trend Summary")
+# ==============================
+# AI SUMMARY TAB
+# ==============================
+
+with tab_ai:
+    st.subheader("AI Strategy Summary")
+
+    if generate_btn and seed_input:
+        combined_text = f"""
+        Google: {google_insights(seed_input)}
+        Meta: {meta_insights(seed_input)}
+        TikTok: {tiktok_insights(seed_input)}
+        Spotify: {spotify_insights(seed_input)}
+        Trends: {trend_research(seed_input)}
+        """
+
+        summary = summarize_insights(combined_text)
+        headlines = generate_headlines(seed_input)
+
+        st.markdown("### 📌 Key Insights")
         st.write(summary)
 
-# ============================================================
-# GOOGLE / YOUTUBE TAB
-# ============================================================
-with tab_google:
-    st.subheader("Google & YouTube Campaign Generator")
+        st.markdown("### 🧠 Suggested Headlines")
+        for h in headlines:
+            st.write(f"• {h}")
 
-    if st.button("Generate Google Campaign"):
-        result = google_campaign_generator(
-            brand=brand,
-            objective=objective,
-            budget=daily_budget,
-            keywords=seed_keywords
-        )
-        st.json(result)
-
-# ============================================================
-# META TAB
-# ============================================================
-with tab_meta:
-    st.subheader("Meta Ads Campaign Generator")
-
-    if st.button("Generate Meta Campaign"):
-        result = meta_campaign_generator(
-            brand=brand,
-            objective=objective,
-            budget=daily_budget,
-            keywords=seed_keywords
-        )
-        st.json(result)
-
-# ============================================================
-# TIKTOK TAB
-# ============================================================
-with tab_tiktok:
-    st.subheader("TikTok Ads Campaign Generator")
-
-    if st.button("Generate TikTok Campaign"):
-        result = tiktok_campaign_generator(
-            brand=brand,
-            objective=objective,
-            budget=daily_budget,
-            keywords=seed_keywords
-        )
-        st.json(result)
-
-# ============================================================
-# SPOTIFY TAB
-# ============================================================
-with tab_spotify:
-    st.subheader("Spotify Audio Campaign Generator")
-
-    if st.button("Generate Spotify Campaign"):
-        result = spotify_campaign_generator(
-            brand=brand,
-            objective=objective,
-            budget=daily_budget,
-            keywords=seed_keywords
-        )
-        st.json(result)
-
-# ============================================================
-# AI STRATEGY TAB
-# ============================================================
-with tab_ai:
-    st.subheader("Unified AI Campaign Strategy")
-
-    if st.button("Generate Master Strategy"):
-        headlines = generate_headlines(
-            brand=brand,
-            objective=objective,
-            keywords=seed_keywords
-        )
-        st.markdown("### Cross-Platform Headlines")
-        st.write(headlines)
+    else:
+        st.info("Run research to generate AI insights.")
