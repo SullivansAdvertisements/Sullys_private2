@@ -1,48 +1,23 @@
 import sys
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CLIENTS_DIR = os.path.join(BASE_DIR, "clients")
+# --- HARD SET APP ROOT ---
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+CLIENTS_DIR = os.path.join(APP_DIR, "clients")
 
-sys.path.insert(0, BASE_DIR)
-sys.path.insert(0, CLIENTS_DIR)
-
-# ============================================================
-# Sully's Unified Multi-Platform Campaign Generator
-# ============================================================
-# This Streamlit app wires together the following clients:
-# - common_ai.py
-# - google_client.py
-# - meta_client.py
-# - spotify_client.py
-# - tiktok_client.py
-# - trends_client.py
-#
-# It is designed to WORK even if APIs are not fully configured,
-# by safely falling back to mock/demo outputs so tabs never render empty.
-# ============================================================
-
-import streamlit as st
-from pathlib import Path
-
-# ---- Client Imports (safe) ----
-import sys
-import os
-
-# Force Streamlit Cloud to see /app/clients
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CLIENTS_DIR = os.path.join(BASE_DIR, "clients")
-sys.path.insert(0, CLIENTS_DIR)
+if CLIENTS_DIR not in sys.path:
+    sys.path.insert(0, CLIENTS_DIR)
 
 import streamlit as st
 
-# Flat imports (THIS IS THE FIX)
+# --- CLIENT IMPORTS ---
 from common_ai import generate_headlines, summarize_insights
 from google_client import google_insights
 from meta_client import meta_insights
 from tiktok_client import tiktok_insights
 from spotify_client import spotify_insights
 from trends_client import trend_research
+
 
 
 # ============================================================
