@@ -1,3 +1,12 @@
+import sys
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CLIENTS_DIR = os.path.join(BASE_DIR, "clients")
+
+sys.path.insert(0, BASE_DIR)
+sys.path.insert(0, CLIENTS_DIR)
+
 # ============================================================
 # Sully's Unified Multi-Platform Campaign Generator
 # ============================================================
