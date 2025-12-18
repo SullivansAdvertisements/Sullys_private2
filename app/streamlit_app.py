@@ -26,12 +26,24 @@ import streamlit as st
 from pathlib import Path
 
 # ---- Client Imports (safe) ----
-from clients.common_ai import generate_headlines, summarize_insights
-from clients.google_client import google_campaign_generator
-from clients.meta_client import meta_campaign_generator
-from clients.spotify_client import spotify_campaign_generator
-from clients.tiktok_client import tiktok_campaign_generator
-from clients.trends_client import cross_platform_trends
+import sys
+import os
+
+# Force Streamlit Cloud to see /app/clients
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CLIENTS_DIR = os.path.join(BASE_DIR, "clients")
+sys.path.insert(0, CLIENTS_DIR)
+
+import streamlit as st
+
+# Flat imports (THIS IS THE FIX)
+from common_ai import generate_headlines, summarize_insights
+from google_client import google_insights
+from meta_client import meta_insights
+from tiktok_client import tiktok_insights
+from spotify_client import spotify_insights
+from trends_client import trend_research
+
 
 # ============================================================
 # PAGE CONFIG
