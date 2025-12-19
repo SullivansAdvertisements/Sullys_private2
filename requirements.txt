@@ -1,8 +1,5 @@
-streamlit
-pytrends
-pandas
-numpy
-requests
-python-dateutil
-beautifulsoup4==4.12.3
-facebook-business==18.0.4
+streamlit==1.39.0
+pandas==2.2.2
+requests==2.32.3
+google-ads==24.0.0
+pytrends==4.9.2
