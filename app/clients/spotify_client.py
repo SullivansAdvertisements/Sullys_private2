@@ -1,18 +1,12 @@
-import requests
+import os
 
-# Placeholder for Spotify Ads or Spotify data integrations.
-# Real integration needs:
-# - Spotify Ads or Web API client ID / secret
-# - OAuth token flow
-
-
-def spotify_connection_status(secrets):
-    required = ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"]
-    missing = [k for k in required if not secrets.get(k)]
-    if missing:
-        return False, f"Missing Spotify creds in secrets: {', '.join(missing)}"
-    return True, "Spotify creds present (but no live API call wired yet)."
-
-
-def spotify_sample_call():
-    return {"note": "TODO: implement Spotify Ads / Discovery call here."}
+def spotify_campaign_generator(brand, objective, budget, keywords):
+    script = f"Hey, it’s {brand}. While you’re listening, tap to check out our latest — only for a limited time."
+    return {
+        "brand": brand,
+        "objective": objective,
+        "daily_budget": budget,
+        "script_30s": script,
+        "status": "demo",  # Spotify Ads API is private; wire your vendor creds if available
+        "notes": ["Use 24/7 pacing, cap at 30s creative", "Add companion banner"]
+    }
