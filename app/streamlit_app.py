@@ -1,4 +1,5 @@
 # Sully's Multi-Platform Ad Intelligence Bot (production-ready UI)
+from clients.trends_client import get_advanced_trends
 import io, json
 from pathlib import Path
 import streamlit as st
