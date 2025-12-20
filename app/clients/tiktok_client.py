@@ -1,18 +1,17 @@
-import requests
+import os
 
-# Placeholder for TikTok Ads integration.
-# Real integration needs:
-# - TikTok for Business account
-# - TikTok Ads API access + OAuth credentials
-
-
-def tiktok_connection_status(secrets):
-    required = ["TIKTOK_ACCESS_TOKEN", "TIKTOK_ADVERTISER_ID"]
-    missing = [k for k in required if not secrets.get(k)]
-    if missing:
-        return False, f"Missing TikTok credentials in secrets: {', '.join(missing)}"
-    return True, "TikTok creds present (but no live API call wired yet)."
-
-
-def tiktok_sample_call():
-    return {"note": "TODO: implement TikTok Ads API call here."}
+def tiktok_campaign_generator(brand, objective, budget, keywords):
+    kws = [k.strip() for k in keywords.replace(",", "\n").split("\n") if k.strip()]
+    hooks = [f"POV: {brand} just dropped {k}" for k in kws[:3]] or [
+        "POV: You found your new favorite brand",
+        "Watch till the end",
+        "This changed my routine"
+    ]
+    return {
+        "brand": brand,
+        "objective": objective,
+        "daily_budget": budget,
+        "hooks": hooks,
+        "status": "demo" if not os.getenv("TIKTOK_ACCESS_TOKEN") else "ready",
+        "notes": ["Test 3-5 creatives per ad group", "Use Spark Ads where possible"]
+    }
