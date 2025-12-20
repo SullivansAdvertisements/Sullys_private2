@@ -1,80 +1,55 @@
-st.subheader("📊 Advanced Trends & Research")
+from pytrends.request import TrendReq
+import pandas as pd
 
-seed_raw = st.text_input(
-    "Enter keyword(s) or interests (comma separated)",
-    placeholder="streetwear, home care services, independent artist marketing"
-)
-
-geo = st.selectbox(
-    "Geographic focus",
-    ["Worldwide", "US", "UK", "CA", "AU"],
-    index=1
-)
-
-timeframe = st.selectbox(
-    "Timeframe",
-    ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
-    index=2
-)
-
-platform = st.selectbox(
-    "Search source",
-    ["Web", "YouTube", "News", "Images", "Shopping"],
-)
-
-gprop_map = {
-    "Web": "",
-    "YouTube": "youtube",
-    "News": "news",
-    "Images": "images",
-    "Shopping": "froogle",
-}
-
-if st.button("Run Advanced Research"):
-    keywords = [k.strip() for k in seed_raw.split(",") if k.strip()]
+def get_advanced_trends(
+    keywords,
+    geo="US",
+    timeframe="today 12-m",
+    gprop=""
+):
+    """
+    Returns:
+    - interest_over_time (DataFrame)
+    - interest_by_region (DataFrame)
+    - related_queries (dict)
+    """
 
     if not keywords:
-        st.warning("Please enter at least one keyword.")
-    else:
-        with st.spinner("Pulling advanced trend data..."):
-            data = get_advanced_trends(
-                keywords=keywords,
-                geo="" if geo == "Worldwide" else geo,
-                timeframe=timeframe,
-                gprop=gprop_map[platform],
-            )
+        return {"error": "No keywords provided"}
 
-        if "error" in data:
-            st.error(data["error"])
-        else:
-            # 📈 Interest over time
-            st.markdown("### 📈 Interest Over Time")
-            if not data["interest_over_time"].empty:
-                st.line_chart(data["interest_over_time"])
-            else:
-                st.info("No time-series data available.")
+    pytrends = TrendReq(hl="en-US", tz=360)
+    pytrends.build_payload(
+        kw_list=keywords,
+        timeframe=timeframe,
+        geo=geo,
+        gprop=gprop,
+    )
 
-            # 🌍 Top locations
-            st.markdown("### 🌍 Top Locations by Interest")
-            if not data["interest_by_region"].empty:
-                st.dataframe(
-                    data["interest_by_region"]
-                    .sort_values(by=keywords[0], ascending=False)
-                    .head(20)
-                )
-            else:
-                st.info("No regional data available.")
+    results = {}
 
-            # 🔎 Related queries
-            st.markdown("### 🔎 Related & Rising Queries")
+    # Interest over time
+    iot = pytrends.interest_over_time()
+    if not iot.empty and "isPartial" in iot.columns:
+        iot = iot.drop(columns=["isPartial"])
+    results["interest_over_time"] = iot
 
-            for kw, rq in data["related_queries"].items():
-                st.markdown(f"**Keyword:** {kw}")
+    # Interest by region
+    region = pytrends.interest_by_region(
+        resolution="COUNTRY",
+        inc_low_vol=True,
+        inc_geo_code=True,
+    )
+    results["interest_by_region"] = region
 
-                if not rq["top"].empty:
-                    st.write("Top queries")
-                    st.dataframe(rq["top"].head(10))
+    # Related queries
+    rq = pytrends.related_queries()
+    cleaned = {}
 
-                if not rq["rising"].empty:
-                    st.write("Rising / Breakout queries")
-                    st.dataframe(rq["rising"].head(10))
+    for kw, data in rq.items():
+        cleaned[kw] = {
+            "top": data["top"] if data["top"] is not None else pd.DataFrame(),
+            "rising": data["rising"] if data["rising"] is not None else pd.DataFrame(),
+        }
+
+    results["related_queries"] = cleaned
+    return results
