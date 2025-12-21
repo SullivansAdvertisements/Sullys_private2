@@ -1,21 +1,18 @@
-from typing import Dict, Any
-import os
+def google_connection_status(secrets):
+    if "GOOGLE_DEVELOPER_TOKEN" not in secrets:
+        return False, "Missing Google Ads credentials"
+    return True, "Google Ads credentials loaded"
 
-def google_campaign_generator(brand: str, objective: str, budget: float, keywords: str) -> Dict[str, Any]:
-    # If Google Ads credentials exist, you can wire Keyword Plan forecasts here.
-    has_creds = all([
-        os.getenv("GOOGLE_DEVELOPER_TOKEN") or "",
-    ])
-    kws = [k.strip() for k in keywords.replace(",", "\n").split("\n") if k.strip()]
-    out = {
-        "brand": brand,
-        "objective": objective,
-        "daily_budget": budget,
-        "keywords": kws,
-        "status": "demo" if not has_creds else "ready",
-        "notes": [
-            "Search + PMax recommended.",
-            "Use Exact/Phrase for core, add DSAs or PMax for discovery."
-        ]
+
+def youtube_connection_status(secrets):
+    if "GOOGLE_DEVELOPER_TOKEN" not in secrets:
+        return False, "Missing YouTube credentials"
+    return True, "YouTube credentials loaded"
+
+
+def google_sample_call():
+    return {
+        "search_volume": "High",
+        "avg_cpc": "$1.80",
+        "competition": "Medium",
     }
-    return out
