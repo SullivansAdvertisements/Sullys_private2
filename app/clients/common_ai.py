@@ -1,22 +1,87 @@
-typing import List, Dict
+def generate_hashtags(seed: str, niche: str):
+    base = seed.lower().replace(" ", "")
 
-def generate_headlines(brand: str, objective: str, keywords: str) -> Dict[str, List[str]]:
-    k = [w.strip() for w in (keywords or "").replace(",", "\n").split("\n") if w.strip()]
-    seed = (k[:3] or ["premium", "official", "new"]).copy()
-    o = objective.lower()
+    if niche == "Music":
+        return {
+            "instagram": [
+                f"#{base}",
+                "#newmusic",
+                "#independentartist",
+                "#musicmarketing",
+                "#artistsoninstagram",
+                "#musicreels",
+            ],
+            "tiktok": [
+                f"#{base}",
+                "#musicdiscovery",
+                "#newartist",
+                "#fyp",
+                "#undergroundmusic",
+            ],
+            "youtube": [
+                f"#{base}",
+                "#musicvideo",
+                "#newrelease",
+                "#indiemusic",
+            ],
+            "twitter": [
+                f"#{base}",
+                "#NewMusicFriday",
+                "#MusicPromo",
+            ],
+        }
 
-    def h(prefix): return [
-        f"{prefix}: {brand} {seed[0]} drop",
-        f"{prefix}: {brand} — {seed[1]} you’ll actually wear" if len(seed) > 1 else f"{prefix}: {brand} — new release",
-        f"{prefix}: {brand} {seed[2]} is live" if len(seed) > 2 else f"{prefix}: {brand} shop now",
-    ]
+    if niche == "Clothing":
+        return {
+            "instagram": [
+                f"#{base}",
+                "#streetwearbrand",
+                "#fashionreels",
+                "#outfitinspo",
+                "#streetwearstyle",
+                "#brandowner",
+            ],
+            "tiktok": [
+                f"#{base}",
+                "#streetwear",
+                "#fashiontok",
+                "#outfitideas",
+                "#brandtok",
+            ],
+            "youtube": [
+                f"#{base}",
+                "#streetwearbrand",
+                "#fashionhaul",
+            ],
+            "twitter": [
+                f"#{base}",
+                "#Streetwear",
+                "#FashionBrand",
+            ],
+        }
 
-    return {
-        "Meta": h("Scroll-stopping"),
-        "Google": [
-            f"{brand} {seed[0]} | Official Site",
-            f"Shop {brand} {seed[1]} Today" if len(seed) > 1 else f"Shop {brand} Today",
-            f"{brand} Deals & New Arrivals",
-        ],
-        "YouTube": h("Watch"),
-        "TikTok": h("POV"),
+    if niche == "Homecare":
+        return {
+            "instagram": [
+                "#homecare",
+                "#seniorcare",
+                "#caregiverlife",
+                "#homehealth",
+                "#agingparents",
+            ],
+            "tiktok": [
+                "#homecare",
+                "#caregiving",
+                "#healthtok",
+            ],
+            "youtube": [
+                "#homecare",
+                "#seniorhealth",
+            ],
+            "twitter": [
+                "#HomeCare",
+                "#SeniorCare",
+            ],
+        }
+
+    return {}
