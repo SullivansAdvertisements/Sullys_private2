@@ -1,17 +1,19 @@
-import os
-
-def tiktok_campaign_generator(brand, objective, budget, keywords):
-    kws = [k.strip() for k in keywords.replace(",", "\n").split("\n") if k.strip()]
-    hooks = [f"POV: {brand} just dropped {k}" for k in kws[:3]] or [
-        "POV: You found your new favorite brand",
-        "Watch till the end",
-        "This changed my routine"
-    ]
+def tiktok_research(niche):
     return {
-        "brand": brand,
-        "objective": objective,
-        "daily_budget": budget,
-        "hooks": hooks,
-        "status": "demo" if not os.getenv("TIKTOK_ACCESS_TOKEN") else "ready",
-        "notes": ["Test 3-5 creatives per ad group", "Use Spark Ads where possible"]
+        "age_focus": "18–34" if niche in ["Music", "Clothing"] else "30–55",
+        "content_formats": [
+            "POV",
+            "UGC testimonials",
+            "Storytelling",
+        ],
+        "hooks": [
+            "You need to see this",
+            "This changed everything",
+            "No one talks about this",
+        ],
+        "interest_clusters": [
+            f"{niche.lower()} lifestyle",
+            f"{niche.lower()} tips",
+            f"{niche.lower()} trends",
+        ],
     }
