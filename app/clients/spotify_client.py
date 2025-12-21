@@ -1,12 +1,11 @@
-import os
+def spotify_connection_status(secrets):
+    if "SPOTIFY_API_KEY" not in secrets:
+        return False, "Missing Spotify Ads API key"
+    return True, "Spotify credentials loaded"
 
-def spotify_campaign_generator(brand, objective, budget, keywords):
-    script = f"Hey, it’s {brand}. While you’re listening, tap to check out our latest — only for a limited time."
+
+def spotify_sample_call():
     return {
-        "brand": brand,
-        "objective": objective,
-        "daily_budget": budget,
-        "script_30s": script,
-        "status": "demo",  # Spotify Ads API is private; wire your vendor creds if available
-        "notes": ["Use 24/7 pacing, cap at 30s creative", "Add companion banner"]
+        "audio_completion_rate": "92%",
+        "recommended_spot_length": "30s",
     }
