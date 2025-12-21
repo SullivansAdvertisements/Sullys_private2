@@ -1,19 +1,12 @@
-def tiktok_research(niche):
+def tiktok_connection_status(secrets):
+    if "TIKTOK_ACCESS_TOKEN" not in secrets:
+        return False, "Missing TikTok token"
+    return True, "TikTok credentials loaded"
+
+
+def tiktok_sample_call():
     return {
-        "age_focus": "18–34" if niche in ["Music", "Clothing"] else "30–55",
-        "content_formats": [
-            "POV",
-            "UGC testimonials",
-            "Storytelling",
-        ],
-        "hooks": [
-            "You need to see this",
-            "This changed everything",
-            "No one talks about this",
-        ],
-        "interest_clusters": [
-            f"{niche.lower()} lifestyle",
-            f"{niche.lower()} tips",
-            f"{niche.lower()} trends",
-        ],
+        "trend_strength": "High",
+        "avg_watch_time": "6.2s",
+        "recommended_format": "UGC 9:16",
     }
