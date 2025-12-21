@@ -1,5 +1,5 @@
 # ===============================
-# Sully’s Multi-Platform Media Planner
+# Sully’s Multi-Platform Media Planner (ADVANCED)
 # ===============================
 
 import io
@@ -7,31 +7,21 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 
-# ---- Clients ----
+# ---- Clients (logic only, no UI inside them) ----
 from clients.common_ai import (
     generate_headlines,
     generate_descriptions,
     generate_hashtags,
+    generate_email_outreach,
 )
 from clients.trends_client import get_advanced_trends
 from clients.meta_client import (
     meta_connection_status,
     meta_reach_estimate,
-    meta_sample_call,
 )
-from clients.google_client import (
-    google_connection_status,
-    youtube_connection_status,
-    google_sample_call,
-)
-from clients.tiktok_client import (
-    tiktok_connection_status,
-    tiktok_sample_call,
-)
-from clients.spotify_client import (
-    spotify_connection_status,
-    spotify_sample_call,
-)
+from clients.google_client import google_connection_status
+from clients.tiktok_client import tiktok_connection_status
+from clients.spotify_client import spotify_connection_status
 
 # ===============================
 # PAGE CONFIG
@@ -43,7 +33,7 @@ st.set_page_config(
 )
 
 # ===============================
-# GLOBAL STYLING (LIGHT MODE)
+# LIGHT THEME (NO DARK MODE)
 # ===============================
 st.markdown(
     """
@@ -83,8 +73,7 @@ with cols[0]:
 with cols[1]:
     st.markdown("## Sully’s Multi-Platform Media Planner")
     st.caption(
-        "Research → Strategy → Cross-Platform Campaign Planning "
-        "(Meta · Google · YouTube · TikTok · Spotify)"
+        "Research → Strategy → Campaign Planning → Influencers → Email Outreach"
     )
 
 st.markdown("---")
@@ -95,23 +84,37 @@ st.markdown("---")
 with st.sidebar:
     if LOGO.exists():
         st.image(str(LOGO), use_column_width=True)
-    st.markdown("### Active Platforms")
+
+    st.markdown("### Platforms")
     st.write("• Meta (FB + IG)")
     st.write("• Google / YouTube")
-    st.write("• TikTok Ads")
-    st.write("• Spotify Audio")
+    st.write("• TikTok")
+    st.write("• Spotify")
+    st.write("• Influencers")
+    st.write("• Email Outreach")
 
 # ===============================
 # TABS
 # ===============================
-tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta = st.tabs(
+(
+    tab_strategy,
+    tab_research,
+    tab_meta,
+    tab_google,
+    tab_tiktok,
+    tab_spotify,
+    tab_influencers,
+    tab_email,
+) = st.tabs(
     [
         "🧠 Strategy",
         "📊 Research & Trends",
+        "📣 Meta",
         "🔍 Google / YouTube",
         "🎵 TikTok",
         "🎧 Spotify",
-        "📣 Meta",
+        "🤝 Influencers",
+        "✉️ Email Marketing",
     ]
 )
 
@@ -137,18 +140,18 @@ with tab_strategy:
             value=5000,
         )
 
-    geo = st.selectbox("Target Region", ["Worldwide", "US", "UK", "CA", "EU"])
+    region = st.selectbox("Target Region", ["Worldwide", "US", "UK", "CA", "EU"])
 
     if st.button("Generate Strategy"):
         st.success("Strategy Generated")
 
-        st.markdown("### Budget Guidance")
+        st.markdown("### Budget Allocation (Auto-Guided)")
         st.write("• Meta: 35–45%")
         st.write("• Google / YouTube: 25–35%")
         st.write("• TikTok: 15–25%")
         st.write("• Spotify: 5–10%")
 
-        st.markdown("### Creative Direction")
+        st.markdown("### Headline Direction")
         for h in generate_headlines(niche, goal):
             st.write("•", h)
 
@@ -156,10 +159,12 @@ with tab_strategy:
 # 📊 RESEARCH & TRENDS TAB
 # ======================================================
 with tab_research:
-    st.subheader("📊 Research & Trend Intelligence")
+    st.subheader("📊 Advanced Research & Trends")
 
-    seed = st.text_input("Keyword / Interest Seed", placeholder="streetwear, hip hop, home care")
-
+    seed = st.text_input(
+        "Keyword / Interest Seed",
+        placeholder="streetwear, hip hop, home care",
+    )
     geo = st.selectbox("Geo", ["US", "Worldwide", "UK", "CA", "EU"])
     timeframe = st.selectbox(
         "Timeframe",
@@ -168,8 +173,12 @@ with tab_research:
     )
 
     if st.button("Run Research"):
-        with st.spinner("Fetching trend intelligence..."):
-            data = get_advanced_trends(seed, geo=geo if geo != "Worldwide" else "", timeframe=timeframe)
+        with st.spinner("Fetching cross-platform trend intelligence..."):
+            data = get_advanced_trends(
+                seed,
+                geo="" if geo == "Worldwide" else geo,
+                timeframe=timeframe,
+            )
 
         if data.get("interest_over_time") is not None:
             st.markdown("### Interest Over Time")
@@ -179,65 +188,98 @@ with tab_research:
             st.markdown("### Top Regions")
             st.dataframe(data["regions"])
 
-        st.markdown("### Platform Hashtags")
+        st.markdown("### Hashtags by Platform")
         tags = generate_hashtags(seed, niche)
         for platform, vals in tags.items():
             st.write(f"**{platform.title()}**:", ", ".join(vals))
 
 # ======================================================
+# 📣 META TAB
+# ======================================================
+with tab_meta:
+    st.subheader("📣 Meta Reach & Planning")
+
+    ok, msg = meta_connection_status(st.secrets)
+    st.write(msg)
+
+    daily_budget = st.number_input(
+        "Daily Budget ($)",
+        min_value=10,
+        value=50,
+    )
+
+    if st.button("Estimate Meta Reach"):
+        reach = meta_reach_estimate(daily_budget)
+        st.success("Estimated Reach")
+        st.json(reach)
+
+# ======================================================
 # 🔍 GOOGLE / YOUTUBE TAB
 # ======================================================
 with tab_google:
-    st.subheader("🔍 Google & YouTube Planner")
-
-    ok_g, g_msg = google_connection_status(st.secrets)
-    ok_y, y_msg = youtube_connection_status(st.secrets)
-
-    st.write("Google Ads:", g_msg)
-    st.write("YouTube:", y_msg)
-
-    if st.button("Sample Google API Call"):
-        st.json(google_sample_call())
+    st.subheader("🔍 Google / YouTube Status")
+    ok, msg = google_connection_status(st.secrets)
+    st.write(msg)
 
 # ======================================================
 # 🎵 TIKTOK TAB
 # ======================================================
 with tab_tiktok:
-    st.subheader("🎵 TikTok Campaign Planner")
-
-    ok_tt, tt_msg = tiktok_connection_status(st.secrets)
-    st.write(tt_msg)
-
-    if st.button("Sample TikTok Call"):
-        st.json(tiktok_sample_call())
+    st.subheader("🎵 TikTok Ads Status")
+    ok, msg = tiktok_connection_status(st.secrets)
+    st.write(msg)
 
 # ======================================================
 # 🎧 SPOTIFY TAB
 # ======================================================
 with tab_spotify:
-    st.subheader("🎧 Spotify Audio Campaigns")
-
-    ok_sp, sp_msg = spotify_connection_status(st.secrets)
-    st.write(sp_msg)
-
-    if st.button("Sample Spotify Call"):
-        st.json(spotify_sample_call())
+    st.subheader("🎧 Spotify Ads Status")
+    ok, msg = spotify_connection_status(st.secrets)
+    st.write(msg)
 
 # ======================================================
-# 📣 META TAB
+# 🤝 INFLUENCER TAB
 # ======================================================
-with tab_meta:
-    st.subheader("📣 Meta Campaign Intelligence")
+with tab_influencers:
+    st.subheader("🤝 Influencer List Builder")
 
-    ok_meta, meta_msg = meta_connection_status(st.secrets)
-    st.write(meta_msg)
+    inf_niche = st.selectbox("Industry", ["Music", "Fashion", "Homecare"])
+    inf_platform = st.selectbox("Platform", ["Instagram", "TikTok", "YouTube"])
+    inf_size = st.selectbox(
+        "Creator Size",
+        ["Nano (1k–10k)", "Micro (10k–100k)", "Mid (100k–500k)", "Macro (500k+)"],
+    )
 
-    daily_budget = st.number_input("Daily Budget ($)", min_value=10, value=50)
+    if st.button("Generate Influencer Criteria"):
+        st.success("Influencer Target Profile")
+        st.write(f"• Platform: {inf_platform}")
+        st.write(f"• Niche: {inf_niche}")
+        st.write(f"• Size: {inf_size}")
+        st.write("• Look for consistent engagement & niche relevance")
 
-    if st.button("Estimate Reach"):
-        reach = meta_reach_estimate(daily_budget)
-        st.success("Estimated Reach")
-        st.json(reach)
+# ======================================================
+# ✉️ EMAIL MARKETING TAB
+# ======================================================
+with tab_email:
+    st.subheader("✉️ Influencer / Brand Email Outreach")
 
-    if st.button("Test Meta API"):
-        st.json(meta_sample_call(st.secrets))
+    email_type = st.selectbox(
+        "Email Type",
+        ["Influencer Collaboration", "Brand Partnership", "Press / Promo"],
+    )
+    sender = st.text_input("Your Brand / Name", value="Sully’s")
+    offer = st.text_input(
+        "Offer / Pitch",
+        value="Paid collaboration + long-term partnership opportunity",
+    )
+
+    if st.button("Generate Email"):
+        email = generate_email_outreach(
+            email_type=email_type,
+            sender=sender,
+            offer=offer,
+            niche=niche,
+        )
+
+        st.success("Email Draft Generated")
+        st.text_area("Email Copy", email, height=220)
