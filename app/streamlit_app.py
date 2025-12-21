@@ -217,33 +217,25 @@ with tab_research:
 def platform_shell(platform_name):
     st.subheader(f"{platform_name} Campaign Generator")
 
-    daily_budget = st.number_input(
+    st.number_input(
         "Daily Budget",
         min_value=10.0,
         value=50.0,
         step=10.0,
-        key=platform_name
+        key=f"{platform_name}_budget"
     )
 
     st.text_area(
         "Generated Headlines",
-        value=(
-            f"• Discover what everyone’s talking about\n"
-            f"• Limited time – act now\n"
-            f"• Built for {platform_name} audiences"
-        ),
-        height=100
+        height=100,
+        key=f"{platform_name}_headlines"
     )
 
     st.text_area(
         "Primary Ad Copy",
-        value=(
-            "High-impact messaging aligned with platform behavior.\n"
-            "Optimized for engagement and conversion."
-        ),
-        height=120
+        height=120,
+        key=f"{platform_name}_copy"
     )
-
     st.info("🔌 Real reach & conversion estimates connect here via API.")
 
 with tab_google:
