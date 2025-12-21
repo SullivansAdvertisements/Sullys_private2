@@ -1,161 +1,109 @@
-# =========================================================
-# Sully's Multi-Platform Media Planner (CLIENT-READY)
-# =========================================================
-# Modes:
-# - Builder Mode (internal use)
-# - Client Presentation Mode (read-only link)
-#
-# Tabs:
-# 🧠 Strategy
-# 📊 Research & Trends
-# 🔍 Google / YouTube
-# 🎵 TikTok
-# 🎧 Spotify
-# 📣 Meta
-#
-# Minimum Monthly Budget: $5,000
-# =========================================================
+# ===============================
+# Sully’s Multi-Platform Media Planner
+# ===============================
 
-import json
+import io
 from pathlib import Path
-from datetime import datetime
 import streamlit as st
 import pandas as pd
 
-# ---------------------------------------------------------
+# ---- Clients ----
+from clients.common_ai import (
+    generate_headlines,
+    generate_descriptions,
+    generate_hashtags,
+)
+from clients.trends_client import get_advanced_trends
+from clients.meta_client import (
+    meta_connection_status,
+    meta_reach_estimate,
+    meta_sample_call,
+)
+from clients.google_client import (
+    google_connection_status,
+    youtube_connection_status,
+    google_sample_call,
+)
+from clients.tiktok_client import (
+    tiktok_connection_status,
+    tiktok_sample_call,
+)
+from clients.spotify_client import (
+    spotify_connection_status,
+    spotify_sample_call,
+)
+
+# ===============================
 # PAGE CONFIG
-# ---------------------------------------------------------
+# ===============================
 st.set_page_config(
     page_title="Sully’s Media Planner",
     page_icon="🌺",
     layout="wide",
 )
 
-# ---------------------------------------------------------
-# GLOBAL STYLES (VISIBLE TEXT + MOBILE SAFE)
-# ---------------------------------------------------------
+# ===============================
+# GLOBAL STYLING (LIGHT MODE)
+# ===============================
 st.markdown(
     """
     <style>
     .stApp { background-color: #f7f7fb; }
-    body, p, li, span, div, label {
+    body, p, span, label, div {
         color: #111 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto;
     }
-    h1, h2, h3, h4 { color: #111 !important; font-weight: 700; }
-
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #111827;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #ffffff !important;
-    }
-
-    /* Tabs */
-    .stTabs [role="tab"] p {
+    h1, h2, h3, h4 {
         color: #111 !important;
-        font-size: 1rem;
-        font-weight: 600;
+        font-weight: 700;
     }
-
-    /* Mobile spacing */
-    @media (max-width: 768px) {
-        h1 { font-size: 1.6rem; }
-        h2 { font-size: 1.3rem; }
-        h3 { font-size: 1.1rem; }
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e5e7eb;
     }
+    .stTabs [role="tab"] p { color: #111 !important; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------
-# FILE PATHS (LOGOS / IMAGES)
-# ---------------------------------------------------------
+# ===============================
+# ASSETS
+# ===============================
 APP_DIR = Path(__file__).resolve().parent
-LOGO_PATH = APP_DIR / "sullivans_logo.png"
+LOGO = APP_DIR / "assets" / "sullivans_logo.png"
 
-# ---------------------------------------------------------
-# SIDEBAR – VIEW MODE
-# ---------------------------------------------------------
-with st.sidebar:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), use_column_width=True)
-
-    st.markdown("## ⚙️ View Mode")
-    CLIENT_MODE = st.toggle(
-        "Client Presentation Mode",
-        value=False,
-        help="Read-only link for clients"
-    )
-
-    st.markdown("---")
-    st.markdown("### Platforms")
-    st.write("• Strategy")
-    st.write("• Research & Trends")
-    st.write("• Google / YouTube")
-    st.write("• TikTok")
-    st.write("• Spotify")
-    st.write("• Meta")
-
-# ---------------------------------------------------------
-# CLIENT MODE CSS (HIDES INPUTS)
-# ---------------------------------------------------------
-if CLIENT_MODE:
-    st.markdown(
-        """
-        <style>
-        input, textarea, select, button {
-            display: none !important;
-        }
-        header, footer {
-            visibility: hidden;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# ---------------------------------------------------------
+# ===============================
 # HEADER
-# ---------------------------------------------------------
-h1, h2 = st.columns([1, 4])
-with h1:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), width=120)
-with h2:
+# ===============================
+cols = st.columns([1, 4])
+with cols[0]:
+    if LOGO.exists():
+        st.image(str(LOGO), use_column_width=True)
+with cols[1]:
     st.markdown("## Sully’s Multi-Platform Media Planner")
-    st.caption("Strategy • Research • Campaign Planning")
+    st.caption(
+        "Research → Strategy → Cross-Platform Campaign Planning "
+        "(Meta · Google · YouTube · TikTok · Spotify)"
+    )
 
 st.markdown("---")
 
-# ---------------------------------------------------------
-# HELPERS
-# ---------------------------------------------------------
-def parse_multiline(text):
-    return [x.strip() for x in text.replace(",", "\n").split("\n") if x.strip()]
+# ===============================
+# SIDEBAR
+# ===============================
+with st.sidebar:
+    if LOGO.exists():
+        st.image(str(LOGO), use_column_width=True)
+    st.markdown("### Active Platforms")
+    st.write("• Meta (FB + IG)")
+    st.write("• Google / YouTube")
+    st.write("• TikTok Ads")
+    st.write("• Spotify Audio")
 
-def generate_strategy(niche, goal, budget, geo):
-    split = {
-        "Meta": 0.35,
-        "Google / YouTube": 0.30,
-        "TikTok": 0.20,
-        "Spotify": 0.15,
-    }
-    return {
-        "niche": niche,
-        "goal": goal,
-        "geo": geo,
-        "budget": budget,
-        "platforms": {
-            k: round(budget * v, 2) for k, v in split.items()
-        }
-    }
-
-# ---------------------------------------------------------
+# ===============================
 # TABS
-# ---------------------------------------------------------
+# ===============================
 tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta = st.tabs(
     [
         "🧠 Strategy",
@@ -167,116 +115,129 @@ tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta = st.t
     ]
 )
 
-# =========================================================
-# TAB 1 – STRATEGY
-# =========================================================
+# ======================================================
+# 🧠 STRATEGY TAB
+# ======================================================
 with tab_strategy:
-    st.subheader("🧠 Media Strategy Builder")
+    st.subheader("🧠 Strategy Engine")
 
-    if not CLIENT_MODE:
-        niche = st.selectbox("Industry", ["Music", "Clothing", "Home Care"])
-        goal = st.selectbox("Primary Goal", ["Awareness", "Leads", "Sales"])
-        geo = st.text_input("Target Market", value="United States")
-        budget = st.number_input(
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        niche = st.selectbox("Niche", ["Music", "Clothing", "Homecare"])
+    with c2:
+        goal = st.selectbox(
+            "Primary Goal",
+            ["Awareness", "Traffic", "Leads", "Conversions", "Sales"],
+        )
+    with c3:
+        monthly_budget = st.number_input(
             "Monthly Budget (USD)",
             min_value=5000,
             step=500,
             value=5000,
         )
 
-        if st.button("Generate Strategy"):
-            plan = generate_strategy(niche, goal, budget, geo)
-            st.session_state["plan"] = plan
+    geo = st.selectbox("Target Region", ["Worldwide", "US", "UK", "CA", "EU"])
 
-    if "plan" in st.session_state:
-        plan = st.session_state["plan"]
-        st.markdown("### 📊 Strategy Overview")
-        st.write(f"**Industry:** {plan['niche']}")
-        st.write(f"**Goal:** {plan['goal']}")
-        st.write(f"**Market:** {plan['geo']}")
-        st.write(f"**Monthly Budget:** ${plan['budget']:,.0f}")
+    if st.button("Generate Strategy"):
+        st.success("Strategy Generated")
 
-        st.markdown("### 💰 Budget Allocation")
-        for p, v in plan["platforms"].items():
-            st.write(f"**{p}:** ${v:,.0f}")
+        st.markdown("### Budget Guidance")
+        st.write("• Meta: 35–45%")
+        st.write("• Google / YouTube: 25–35%")
+        st.write("• TikTok: 15–25%")
+        st.write("• Spotify: 5–10%")
 
-# =========================================================
-# TAB 2 – RESEARCH & TRENDS
-# =========================================================
+        st.markdown("### Creative Direction")
+        for h in generate_headlines(niche, goal):
+            st.write("•", h)
+
+# ======================================================
+# 📊 RESEARCH & TRENDS TAB
+# ======================================================
 with tab_research:
-    st.subheader("📊 Research & Trends")
+    st.subheader("📊 Research & Trend Intelligence")
 
-    if not CLIENT_MODE:
-        seeds = st.text_area(
-            "Keyword / Interest Seeds",
-            placeholder="streetwear, home care services, independent artist",
-        )
+    seed = st.text_input("Keyword / Interest Seed", placeholder="streetwear, hip hop, home care")
 
-        st.caption("This tab is designed to connect Google Trends, TikTok Creative Center, YouTube, Meta Ad Library.")
-
-        if st.button("Run Research"):
-            st.success("Research pulled (API wiring happens in trends_client.py)")
-            st.write("Top Regions, Rising Keywords, Interest Clusters")
-
-    st.info(
-        "Client View: This section shows validated trends, locations, and interests once connected to live APIs."
+    geo = st.selectbox("Geo", ["US", "Worldwide", "UK", "CA", "EU"])
+    timeframe = st.selectbox(
+        "Timeframe",
+        ["now 7-d", "today 3-m", "today 12-m", "today 5-y"],
+        index=2,
     )
 
-# =========================================================
-# TAB 3 – GOOGLE / YOUTUBE
-# =========================================================
-with tab_google:
-    st.subheader("🔍 Google / YouTube Campaign Planner")
-    st.write("Search + Video campaign structure")
-    st.write("• Keyword clusters")
-    st.write("• Intent mapping")
-    st.write("• Placement strategy")
-    st.info("Live Google Ads API wiring belongs in `google_client.py`")
+    if st.button("Run Research"):
+        with st.spinner("Fetching trend intelligence..."):
+            data = get_advanced_trends(seed, geo=geo if geo != "Worldwide" else "", timeframe=timeframe)
 
-# =========================================================
-# TAB 4 – TIKTOK
-# =========================================================
+        if data.get("interest_over_time") is not None:
+            st.markdown("### Interest Over Time")
+            st.line_chart(data["interest_over_time"])
+
+        if data.get("regions") is not None:
+            st.markdown("### Top Regions")
+            st.dataframe(data["regions"])
+
+        st.markdown("### Platform Hashtags")
+        tags = generate_hashtags(seed, niche)
+        for platform, vals in tags.items():
+            st.write(f"**{platform.title()}**:", ", ".join(vals))
+
+# ======================================================
+# 🔍 GOOGLE / YOUTUBE TAB
+# ======================================================
+with tab_google:
+    st.subheader("🔍 Google & YouTube Planner")
+
+    ok_g, g_msg = google_connection_status(st.secrets)
+    ok_y, y_msg = youtube_connection_status(st.secrets)
+
+    st.write("Google Ads:", g_msg)
+    st.write("YouTube:", y_msg)
+
+    if st.button("Sample Google API Call"):
+        st.json(google_sample_call())
+
+# ======================================================
+# 🎵 TIKTOK TAB
+# ======================================================
 with tab_tiktok:
     st.subheader("🎵 TikTok Campaign Planner")
-    st.write("• Creative hooks")
-    st.write("• Audience discovery")
-    st.write("• Trend-based ad concepts")
-    st.info("Live TikTok Ads API wiring belongs in `tiktok_client.py`")
 
-# =========================================================
-# TAB 5 – SPOTIFY
-# =========================================================
+    ok_tt, tt_msg = tiktok_connection_status(st.secrets)
+    st.write(tt_msg)
+
+    if st.button("Sample TikTok Call"):
+        st.json(tiktok_sample_call())
+
+# ======================================================
+# 🎧 SPOTIFY TAB
+# ======================================================
 with tab_spotify:
-    st.subheader("🎧 Spotify Campaign Planner")
-    st.write("• Audio ad concepts")
-    st.write("• Listener targeting")
-    st.write("• Podcast placements")
-    st.info("Live Spotify Ads API wiring belongs in `spotify_client.py`")
+    st.subheader("🎧 Spotify Audio Campaigns")
 
-# =========================================================
-# TAB 6 – META
-# =========================================================
+    ok_sp, sp_msg = spotify_connection_status(st.secrets)
+    st.write(sp_msg)
+
+    if st.button("Sample Spotify Call"):
+        st.json(spotify_sample_call())
+
+# ======================================================
+# 📣 META TAB
+# ======================================================
 with tab_meta:
-    st.subheader("📣 Meta (Facebook + Instagram)")
+    st.subheader("📣 Meta Campaign Intelligence")
 
-    st.write("• Campaign → Ad Set → Ad flow")
-    st.write("• Audience targeting")
-    st.write("• Creative generation")
-    st.write("• Reach & delivery estimates")
+    ok_meta, meta_msg = meta_connection_status(st.secrets)
+    st.write(meta_msg)
 
-    st.info(
-        "Live Meta campaign creation, reach estimates, and delivery forecasting "
-        "must be handled inside `meta_client.py` using official Graph API endpoints."
-    )
+    daily_budget = st.number_input("Daily Budget ($)", min_value=10, value=50)
 
-# ---------------------------------------------------------
-# CLIENT EXPORT
-# ---------------------------------------------------------
-if CLIENT_MODE and "plan" in st.session_state:
-    st.markdown("---")
-    st.download_button(
-        "📥 Download Client Strategy",
-        data=json.dumps(st.session_state["plan"], indent=2),
-        file_name="sully_media_strategy.json",
-        mime="application/json",
-    )
+    if st.button("Estimate Reach"):
+        reach = meta_reach_estimate(daily_budget)
+        st.success("Estimated Reach")
+        st.json(reach)
+
+    if st.button("Test Meta API"):
+        st.json(meta_sample_call(st.secrets))
