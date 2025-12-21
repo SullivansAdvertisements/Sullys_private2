@@ -1,77 +1,37 @@
 def generate_headlines(niche, goal):
-    base = niche.lower()
-
-    if niche == "Music":
-        return [
-            "New music just dropped 🎧",
-            "You haven’t heard this yet",
-            "Independent but unstoppable",
-        ]
-
-    if niche == "Clothing":
-        return [
-            "Limited drop — don’t miss it",
-            "Streetwear done right",
-            "Built for the culture",
-        ]
-
-    if niche == "Homecare":
-        return [
-            "Care your family deserves",
-            "Trusted home care services",
-            "Support when it matters most",
-        ]
-
-    return ["Discover something new today"]
+    return [
+        f"{niche} campaign designed for {goal}",
+        f"Discover the future of {niche}",
+        f"{niche} solutions that convert",
+    ]
 
 
-def generate_descriptions(niche):
-    if niche == "Music":
-        return [
-            "Stream now on all platforms.",
-            "Tap in and support independent artists.",
-        ]
-
-    if niche == "Clothing":
-        return [
-            "Premium quality. Limited quantities.",
-            "Designed for everyday wear.",
-        ]
-
-    if niche == "Homecare":
-        return [
-            "Licensed caregivers near you.",
-            "Book a free consultation today.",
-        ]
-
-    return ["Learn more today"]
+def generate_descriptions(niche, goal):
+    return [
+        f"High-performing {niche} ads built for {goal}.",
+        f"Reach the right audience with smarter {niche} marketing.",
+    ]
 
 
 def generate_hashtags(seed, niche):
-    seed = seed.replace(" ", "").lower()
+    return {
+        "instagram": [f"#{seed}", f"#{niche}", "#trending"],
+        "tiktok": [f"#{seed}", "#fyp", "#viral"],
+        "youtube": [seed, f"{niche} marketing"],
+    }
 
-    if niche == "Music":
-        return {
-            "instagram": [f"#{seed}", "#newmusic", "#musicreels"],
-            "tiktok": [f"#{seed}", "#musicdiscovery", "#fyp"],
-            "youtube": [f"#{seed}", "#musicvideo"],
-            "twitter": [f"#{seed}", "#NewMusic"],
-        }
 
-    if niche == "Clothing":
-        return {
-            "instagram": [f"#{seed}", "#streetwear", "#fashionbrand"],
-            "tiktok": [f"#{seed}", "#streetweartok"],
-            "youtube": [f"#{seed}", "#streetwearbrand"],
-            "twitter": [f"#{seed}", "#Streetwear"],
-        }
+def generate_email_outreach(email_type, sender, offer, niche):
+    return f"""
+Hi there,
 
-    if niche == "Homecare":
-        return {
-            "instagram": ["#homecare", "#seniorcare"],
-            "tiktok": ["#caregiving"],
-            "youtube": ["#homecare"],
-            "twitter": ["#HomeCare"],
-        }
+My name is {sender} and I work with a {niche} brand.
 
-    return {}
+We’re reaching out regarding a {email_type.lower()} opportunity.
+We’d love to discuss: {offer}
+
+Let me know if you’re interested.
+
+Best,
+{sender}
+"""
