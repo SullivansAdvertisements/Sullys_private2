@@ -1,21 +1,28 @@
 from pytrends.request import TrendReq
 
-def google_youtube_trends(keywords, geo="US", timeframe="today 12-m"):
+def get_advanced_trends(seed, geo="US", timeframe="today 12-m"):
     pytrends = TrendReq(hl="en-US", tz=360)
-    pytrends.build_payload(keywords, geo=geo, timeframe=timeframe)
+    pytrends.build_payload([seed], timeframe=timeframe, geo=geo)
 
-    interest = pytrends.interest_over_time()
-    regions = pytrends.interest_by_region(resolution="REGION", inc_low_vol=True)
+    results = {}
 
-    related = pytrends.related_queries()
-    rising = []
+    try:
+        iot = pytrends.interest_over_time()
+        if not iot.empty:
+            results["interest_over_time"] = iot
+    except:
+        results["interest_over_time"] = None
 
-    for k, v in related.items():
-        if v.get("rising") is not None:
-            rising += v["rising"]["query"].tolist()
+    try:
+        regions = pytrends.interest_by_region(resolution="REGION")
+        results["regions"] = regions.sort_values(seed, ascending=False).head(20)
+    except:
+        results["regions"] = None
 
-    return {
-        "interest_over_time": interest,
-        "regions": regions,
-        "rising_queries": list(set(rising))[:50],
-    }
+    try:
+        rq = pytrends.related_queries()
+        results["related_queries"] = rq.get(seed, {})
+    except:
+        results["related_queries"] = None
+
+    return results
