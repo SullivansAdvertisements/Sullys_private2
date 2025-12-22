@@ -1,3 +1,8 @@
+from core.common_ai import (
+    generate_headlines,
+    generate_descriptions,
+    generate_ctas,
+)
 import sys
 from pathlib import Path
 
