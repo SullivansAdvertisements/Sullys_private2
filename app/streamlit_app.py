@@ -1,237 +1,238 @@
 import streamlit as st
-import base64
 from pathlib import Path
 
-# =========================
-# PAGE CONFIG (LIGHT MODE)
-# =========================
+# ----------------------------
+# Page config
+# ----------------------------
 st.set_page_config(
-    page_title="Sully’s Growth Planner",
+    page_title="Sully’s Marketing Intelligence",
     page_icon="🌺",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# =========================
-# ASSET PATHS
-# =========================
+# ----------------------------
+# Paths (Streamlit Cloud safe)
+# ----------------------------
 APP_DIR = Path(__file__).parent
-ASSETS = APP_DIR / "assets"
+MAIN_BG = APP_DIR / "main_bg.png"          # ← recent logo as main background
+SIDEBAR_BG = APP_DIR / "sidebar_bg.png"    # ← sidebar background
+LOGO = APP_DIR / "sullivans_logo.png"      # optional header logo
 
-SIDEBAR_BG = ASSETS / "sidebar_bg.png"
-HEADER_BG = ASSETS / "header_bg.png"
-LOGO = ASSETS / "sullivans_logo.png"
-
-# =========================
-# BASE64 LOADER (CRITICAL)
-# =========================
-def load_b64(path):
-    if not path.exists():
-        return ""
-    return base64.b64encode(path.read_bytes()).decode()
-
-SIDEBAR_BG_B64 = load_b64(SIDEBAR_BG)
-HEADER_BG_B64 = load_b64(HEADER_BG)
-LOGO_B64 = load_b64(LOGO)
-
-# =========================
-# GLOBAL STYLES (FIXED)
-# =========================
+# ----------------------------
+# CSS Styling
+# ----------------------------
 st.markdown(
     f"""
-<style>
+    <style>
 
-/* Force light mode */
-html, body, [class*="css"] {{
-    background-color: #f7f8fc !important;
-    color: #111 !important;
-}}
+    /* ---------- MAIN APP BACKGROUND ---------- */
+    .stApp {{
+        background-image: url("{MAIN_BG.as_posix()}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }}
 
-/* Sticky header */
-.header {{
-    position: sticky;
-    top: 0;
-    z-index: 999;
-    background-image: url("data:image/png;base64,{HEADER_BG_B64}");
-    background-size: cover;
-    padding: 20px;
-    border-radius: 0 0 14px 14px;
-}}
+    /* Light overlay so text stays readable */
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(255,255,255,0.88);
+        z-index: -1;
+    }}
 
-/* Sidebar background */
-[data-testid="stSidebar"] {{
-    background-image: url("data:image/png;base64,{SIDEBAR_BG_B64}");
-    background-size: cover;
-}}
+    /* ---------- SIDEBAR ---------- */
+    [data-testid="stSidebar"] {{
+        background-image: url("{SIDEBAR_BG.as_posix()}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }}
 
-[data-testid="stSidebar"]::before {{
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.45);
-}}
+    [data-testid="stSidebar"] * {{
+        color: #ffffff !important;
+        font-weight: 600;
+    }}
 
-[data-testid="stSidebar"] * {{
-    position: relative;
-    z-index: 1;
-    color: white !important;
-}}
+    /* ---------- TEXT VISIBILITY ---------- */
+    body, p, span, div, label {{
+        color: #111111 !important;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }}
 
-/* Inputs readable */
-input, textarea, select {{
-    background-color: white !important;
-    color: black !important;
-}}
+    h1, h2, h3, h4, h5 {{
+        color: #0b0b0b !important;
+        font-weight: 800;
+    }}
 
-</style>
-""",
+    /* ---------- INPUTS ---------- */
+    input, textarea, select {{
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }}
+
+    /* ---------- TABS ---------- */
+    .stTabs [role="tab"] p {{
+        color: #111111 !important;
+        font-weight: 600;
+    }}
+
+    /* ---------- STICKY HEADER ---------- */
+    header {{
+        position: sticky;
+        top: 0;
+        background: rgba(255,255,255,0.95);
+        backdrop-filter: blur(6px);
+        z-index: 999;
+        border-bottom: 1px solid #ddd;
+    }}
+
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
-# =========================
-# HEADER
-# =========================
-st.markdown(
-    f"""
-<div class="header">
-    <img src="data:image/png;base64,{LOGO_B64}" height="48"/>
-    <h2>Sully’s Multi-Platform Growth Engine</h2>
-    <p>Strategy • Research • Budget Planning • Client-Ready</p>
-</div>
-""",
-    unsafe_allow_html=True,
-)
+# ----------------------------
+# Header
+# ----------------------------
+header_cols = st.columns([1, 4])
+with header_cols[0]:
+    if LOGO.exists():
+        st.image(str(LOGO), width=120)
 
-# =========================
-# SIDEBAR CONTROLS
-# =========================
+with header_cols[1]:
+    st.title("Sully’s Multi-Platform Marketing Brain")
+    st.caption(
+        "Strategy • Research • Campaign Generation • Influencer Outreach"
+    )
+
+st.markdown("---")
+
+# ----------------------------
+# Sidebar
+# ----------------------------
 with st.sidebar:
-    st.markdown("## ⚙️ Settings")
+    if LOGO.exists():
+        st.image(str(LOGO), use_column_width=True)
 
-    client_mode = st.toggle("Client Presentation Mode (Read-Only)", value=False)
+    st.markdown("### Platform Modules")
+    st.write("• Meta (Facebook & Instagram)")
+    st.write("• Google & YouTube")
+    st.write("• TikTok")
+    st.write("• Spotify")
+    st.write("• Influencer + Email")
 
-    st.markdown("### Platforms to Include")
-    use_meta = st.checkbox("Meta (Facebook & Instagram)", value=True)
-    use_google = st.checkbox("Google / YouTube", value=True)
-    use_tiktok = st.checkbox("TikTok", value=True)
-    use_spotify = st.checkbox("Spotify", value=False)
-
-# =========================
-# MAIN TABS
-# =========================
-tabs = st.tabs(
+# ----------------------------
+# Tabs
+# ----------------------------
+tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta, tab_influencer = st.tabs(
     [
         "🧠 Strategy",
         "📊 Research & Trends",
-        "📣 Campaign Planning",
-        "📧 Influencers & Email",
-        "📊 Client Summary",
+        "🔍 Google / YouTube",
+        "🎵 TikTok",
+        "🎧 Spotify",
+        "📣 Meta",
+        "🤝 Influencer + Email",
     ]
 )
 
-# =========================
-# TAB 1 — STRATEGY
-# =========================
-with tabs[0]:
-    st.subheader("🧠 Strategy Builder")
-
-    niche = st.selectbox("Industry", ["Music", "Clothing", "Homecare"])
-    goal = st.selectbox("Primary Goal", ["Awareness", "Leads", "Sales"])
+# ----------------------------
+# Strategy Tab
+# ----------------------------
+with tab_strategy:
+    st.subheader("🧠 Strategy Engine")
 
     budget = st.number_input(
-        "Monthly Ad Budget (USD)",
+        "Monthly Budget (minimum $500)",
         min_value=500,
+        step=100,
         value=5000,
-        step=250,
-        disabled=client_mode,
     )
 
-    location = st.selectbox("Target Region", ["Worldwide", "US", "UK", "CA", "EU"])
+    platforms = st.multiselect(
+        "Select platforms to include",
+        ["Meta", "Google / YouTube", "TikTok", "Spotify"],
+        default=["Meta", "Google / YouTube", "TikTok"],
+    )
 
-    if st.button("Generate Strategy", disabled=client_mode):
-        st.success("Strategy Generated")
+    st.info(
+        "Phase 2 will auto-rebalance budgets, forecast reach, and scale winners automatically."
+    )
 
-        platforms = []
-        if use_meta:
-            platforms.append("Meta")
-        if use_google:
-            platforms.append("Google / YouTube")
-        if use_tiktok:
-            platforms.append("TikTok")
-        if use_spotify:
-            platforms.append("Spotify")
-
-        split = round(budget / max(len(platforms), 1), 2)
-
-        for p in platforms:
-            st.markdown(f"### {p}")
-            st.write(f"Recommended Monthly Budget: **${split:,.2f}**")
-            st.write("Focus: audience testing → creative scaling → retargeting")
-
-# =========================
-# TAB 2 — RESEARCH
-# =========================
-with tabs[1]:
+# ----------------------------
+# Research Tab
+# ----------------------------
+with tab_research:
     st.subheader("📊 Research & Trends")
 
-    keyword = st.text_input("Seed Keyword / Interest")
-    timeframe = st.selectbox("Timeframe", ["30 days", "90 days", "1 year", "5 years"])
+    seed = st.text_input(
+        "Keyword / Interest Seed",
+        placeholder="streetwear, hip hop artist, home care services",
+    )
 
-    st.write("Outputs:")
-    st.write("- Related keywords")
-    st.write("- Cities / States / Countries")
-    st.write("- Age & gender insights")
-    st.write("- Hashtags per platform")
+    location = st.text_input(
+        "Target Location (Country / State / City)",
+        placeholder="United States, California, Los Angeles",
+    )
 
-    if st.button("Run Research", disabled=client_mode):
-        st.success("Research Complete")
-        st.write("• Rising queries")
-        st.write("• Best locations")
-        st.write("• Platform-specific interests")
+    st.info(
+        "This tab will aggregate:\n"
+        "- Google Trends\n"
+        "- YouTube search demand\n"
+        "- TikTok trending topics\n"
+        "- Meta Ad Library signals\n"
+        "- Hashtags & audience interests\n\n"
+        "All wired in Phase 2."
+    )
 
-# =========================
-# TAB 3 — CAMPAIGN PLANNING
-# =========================
-with tabs[2]:
-    st.subheader("📣 Campaign Planning")
+# ----------------------------
+# Google / YouTube Tab
+# ----------------------------
+with tab_google:
+    st.subheader("🔍 Google & YouTube Campaign Generator")
+    st.info("Campaign + keyword + audience builder coming next phase.")
 
-    st.write("This section prepares campaigns for selected platforms.")
+# ----------------------------
+# TikTok Tab
+# ----------------------------
+with tab_tiktok:
+    st.subheader("🎵 TikTok Campaign Generator")
+    st.info("Creative hooks, Spark Ads & trend-driven targeting coming next phase.")
 
-    if use_meta:
-        st.markdown("### Meta Campaign")
-        st.write("• Estimated reach (API)")
-        st.write("• CPC & conversion range")
+# ----------------------------
+# Spotify Tab
+# ----------------------------
+with tab_spotify:
+    st.subheader("🎧 Spotify Audio Campaigns")
+    st.info("Audio scripts + audience discovery coming next phase.")
 
-    if use_google:
-        st.markdown("### Google / YouTube Campaign")
-        st.write("• Keyword planner estimates")
-        st.write("• Search + Video mix")
+# ----------------------------
+# Meta Tab
+# ----------------------------
+with tab_meta:
+    st.subheader("📣 Meta Campaign Builder")
+    st.info(
+        "Campaign → Ad Set → Ad automation\n"
+        "Real reach estimates via Meta Reach API\n"
+        "Pixel + IG actor support\n\n"
+        "Activates in Phase 2."
+    )
 
-    if use_tiktok:
-        st.markdown("### TikTok Campaign")
-        st.write("• Trend-based hooks")
-        st.write("• Creator-style ads")
+# ----------------------------
+# Influencer + Email Tab
+# ----------------------------
+with tab_influencer:
+    st.subheader("🤝 Influencer Research + Email Outreach")
 
-# =========================
-# TAB 4 — INFLUENCERS + EMAIL
-# =========================
-with tabs[3]:
-    st.subheader("📧 Influencer & Email Outreach")
-
-    st.write("• Find influencers by niche")
-    st.write("• Generate outreach emails")
-    st.write("• Export contact list")
-
-    if st.button("Generate Outreach Copy", disabled=client_mode):
-        st.success("Email Draft Ready")
-
-# =========================
-# TAB 5 — CLIENT SUMMARY
-# =========================
-with tabs[4]:
-    st.subheader("📊 Client Presentation")
-
-    st.write("Read-only overview for clients.")
-    st.write("• Strategy")
-    st.write("• Budget split")
-    st.write("• Platform focus")
+    st.info(
+        "This module will:\n"
+        "- Find influencers by niche & location\n"
+        "- Generate outreach emails\n"
+        "- Build contact lists\n"
+        "- Export to CSV\n\n"
+        "Activates in Phase 3."
+    )
