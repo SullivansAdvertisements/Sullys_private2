@@ -29,9 +29,10 @@ from datetime import datetime
 # -------------------------
 from core.strategies import allocate_budget
 from core.common_ai import (
-    generate_headlines,
-    generate_primary_text,
-    generate_ctas,
+    generate_meta_creatives,
+    generate_google_ads,
+    generate_tiktok_hooks,
+    generate_spotify_script,
 )
 
 from research.trends_client import get_google_trends
