@@ -1,15 +1,37 @@
-import streamlit as st
+# ==========================================================
+# Sully's Multi-Platform Marketing Intelligence Platform
+# ==========================================================
+
+# -------------------------
+# PATH FIX (REQUIRED FOR STREAMLIT CLOUD)
+# -------------------------
+import sys
 from pathlib import Path
 
-# -----------------------------
-# IMPORT CORE / CLIENT MODULES
-# -----------------------------
+APP_ROOT = Path(__file__).resolve().parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.append(str(APP_ROOT))
+
+# -------------------------
+# STANDARD IMPORTS
+# -------------------------
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# -------------------------
+# INTERNAL IMPORTS (SAFE)
+# -------------------------
 from core.strategies import allocate_budget
-from core.common_ai import generate_ad_copy
+from core.common_ai import (
+    generate_headlines,
+    generate_primary_text,
+    generate_ctas,
+)
 
 from research.trends_client import get_google_trends
 from research.tiktok_trends import get_tiktok_trends
-from research.meta_library import get_meta_ad_examples
+from research.meta_library import search_meta_ads
 
 from clients.meta_client import meta_connection_status
 from clients.google_client import google_connection_status
@@ -18,252 +40,184 @@ from clients.spotify_client import spotify_connection_status
 
 from influencer.influencer import find_influencers
 
-# -----------------------------
+# -------------------------
 # PAGE CONFIG
-# -----------------------------
+# -------------------------
 st.set_page_config(
-    page_title="Sully’s Multi-Platform Media Planner",
+    page_title="Sully’s Marketing Intelligence",
     page_icon="🌺",
     layout="wide",
 )
 
-# -----------------------------
+# -------------------------
+# STYLING (LIGHT MODE, MOBILE SAFE)
+# -------------------------
+st.markdown("""
+<style>
+.stApp {
+    background-color: #f8f9fc;
+}
+h1, h2, h3, h4 {
+    color: #111;
+}
+p, label, div, span {
+    color: #111 !important;
+}
+[data-testid="stSidebar"] {
+    background-color: #141628;
+}
+[data-testid="stSidebar"] * {
+    color: white !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------
 # ASSETS
-# -----------------------------
-APP_DIR = Path(__file__).resolve().parent
-ASSETS = APP_DIR / "assets"
-
+# -------------------------
+ASSETS = APP_ROOT / "assets"
 LOGO = ASSETS / "logo.png"
-SIDEBAR_BG = ASSETS / "sidebar_bg.png"
-BACKGROUND = ASSETS / "background.png"
 
-# -----------------------------
-# STYLING (LIGHT MODE, VISIBLE)
-# -----------------------------
-st.markdown(
-    f"""
-    <style>
-    .stApp {{
-        background-image: url("{BACKGROUND.name}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
-
-    [data-testid="stSidebar"] {{
-        background-image: url("{SIDEBAR_BG.name}");
-        background-size: cover;
-        background-position: center;
-    }}
-
-    body, p, span, div, label {{
-        color: #111 !important;
-        font-family: "Segoe UI", sans-serif;
-    }}
-
-    h1, h2, h3, h4 {{
-        color: #111 !important;
-        font-weight: 700;
-    }}
-
-    .stTabs [role="tab"] p {{
-        color: #111 !important;
-        font-weight: 600;
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# -----------------------------
+# -------------------------
 # HEADER
-# -----------------------------
-col1, col2 = st.columns([1, 4])
-with col1:
+# -------------------------
+cols = st.columns([1, 4])
+with cols[0]:
     if LOGO.exists():
         st.image(str(LOGO), use_column_width=True)
-with col2:
-    st.markdown("## Sully’s Multi-Platform Media Planner")
-    st.caption(
-        "Strategy, research, influencer discovery, and campaign planning across Meta, Google, TikTok, Spotify."
-    )
+with cols[1]:
+    st.title("Sully’s Marketing Intelligence Platform")
+    st.caption("Campaign planning, research, and creative generation across all major ad platforms.")
 
-st.markdown("---")
+st.divider()
 
-# -----------------------------
+# -------------------------
 # SIDEBAR
-# -----------------------------
+# -------------------------
 with st.sidebar:
     if LOGO.exists():
         st.image(str(LOGO), use_column_width=True)
+    st.markdown("### Platform Status")
+    st.write("Meta:", meta_connection_status(st.secrets)[1])
+    st.write("Google:", google_connection_status(st.secrets)[1])
+    st.write("TikTok:", tiktok_connection_status(st.secrets)[1])
+    st.write("Spotify:", spotify_connection_status(st.secrets)[1])
 
-    st.markdown("### Planner Controls")
-
-    total_budget = st.number_input(
-        "Monthly Budget (USD)",
-        min_value=5000,
-        step=500,
-        value=5000,
-    )
-
-    selected_platforms = st.multiselect(
-        "Platforms to include",
-        ["Meta", "Google", "TikTok", "Spotify"],
-        default=["Meta", "Google", "TikTok"],
-    )
-
-    niche = st.selectbox(
-        "Business Niche",
-        ["Music", "Clothing", "Homecare"],
-    )
-
-    goal = st.selectbox(
-        "Primary Goal",
-        ["Awareness", "Traffic", "Leads", "Sales"],
-    )
-
-# -----------------------------
+# -------------------------
 # TABS
-# -----------------------------
-tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta, tab_influencer = st.tabs(
-    [
-        "🧠 Strategy",
-        "📊 Research & Trends",
-        "🔍 Google / YouTube",
-        "🎵 TikTok",
-        "🎧 Spotify",
-        "📣 Meta",
-        "🤝 Influencers & Email",
-    ]
-)
+# -------------------------
+tab_strategy, tab_research, tab_meta, tab_google, tab_tiktok, tab_spotify, tab_influencer = st.tabs([
+    "🧠 Strategy",
+    "📊 Research",
+    "📣 Meta",
+    "🔍 Google / YouTube",
+    "🎵 TikTok",
+    "🎧 Spotify",
+    "🤝 Influencers",
+])
 
-# ======================================================
+# ==========================================================
 # STRATEGY TAB
-# ======================================================
+# ==========================================================
 with tab_strategy:
-    st.subheader("🧠 Cross-Platform Strategy Engine")
+    st.subheader("Strategy Planner")
 
-    try:
-        allocation = allocate_budget(total_budget, selected_platforms)
-        st.success("Budget allocation complete")
+    niche = st.selectbox("Business Type", ["Music", "Clothing", "Home Care"])
+    goal = st.selectbox("Primary Goal", ["Awareness", "Traffic", "Leads", "Sales"])
+    budget = st.number_input("Monthly Budget (minimum $500)", min_value=500, value=5000, step=500)
 
-        st.markdown("### Budget Split")
-        st.json(allocation)
-
-        st.markdown("### Auto Recommendations")
-        st.write(
-            "• Scale Meta & Google once CPA stabilizes\n"
-            "• Use TikTok for discovery + creative testing\n"
-            "• Retarget across platforms after 14 days"
-        )
-
-    except Exception as e:
-        st.error(str(e))
-
-# ======================================================
-# RESEARCH & TRENDS TAB
-# ======================================================
-with tab_research:
-    st.subheader("📊 Research & Trend Intelligence")
-
-    seed = st.text_input(
-        "Keyword / Interest Seed",
-        placeholder="streetwear, hip hop artist, home care services",
+    platforms = st.multiselect(
+        "Platforms to Use",
+        ["Meta", "Google", "TikTok", "YouTube", "Spotify"],
+        default=["Meta", "Google", "TikTok"]
     )
 
-    if seed:
+    if st.button("Generate Strategy"):
+        plan = allocate_budget(budget, platforms, goal)
+        st.success("Strategy Generated")
+        st.json(plan)
+
+# ==========================================================
+# RESEARCH TAB
+# ==========================================================
+with tab_research:
+    st.subheader("Advanced Research & Trends")
+
+    keyword = st.text_input("Seed Keyword / Interest")
+    country = st.text_input("Country (ISO)", value="US")
+
+    if st.button("Run Research"):
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.markdown("#### Google & YouTube Trends")
-            st.dataframe(get_google_trends(seed))
+            st.markdown("### Google Trends")
+            st.json(get_google_trends(keyword, country))
 
         with col2:
-            st.markdown("#### TikTok Trends")
-            st.dataframe(get_tiktok_trends(seed))
+            st.markdown("### TikTok Trends")
+            st.json(get_tiktok_trends(keyword))
 
         with col3:
-            st.markdown("#### Meta Ad Library")
-            st.dataframe(get_meta_ad_examples(seed))
+            st.markdown("### Meta Ad Library")
+            st.json(search_meta_ads(keyword))
 
-# ======================================================
-# GOOGLE / YOUTUBE TAB
-# ======================================================
-with tab_google:
-    st.subheader("🔍 Google / YouTube Campaign Planner")
-
-    ok, msg = google_connection_status(st.secrets)
-    st.success(msg) if ok else st.warning(msg)
-
-    if st.button("Generate Google Headlines"):
-        copy = generate_ad_copy(niche, goal)
-        st.json(copy)
-
-# ======================================================
-# TIKTOK TAB
-# ======================================================
-with tab_tiktok:
-    st.subheader("🎵 TikTok Campaign Planner")
-
-    ok, msg = tiktok_connection_status(st.secrets)
-    st.success(msg) if ok else st.warning(msg)
-
-    if st.button("Generate TikTok Hooks"):
-        copy = generate_ad_copy(niche, goal)
-        st.json(copy)
-
-# ======================================================
-# SPOTIFY TAB
-# ======================================================
-with tab_spotify:
-    st.subheader("🎧 Spotify Audio Planner")
-
-    ok, msg = spotify_connection_status(st.secrets)
-    st.success(msg) if ok else st.warning(msg)
-
-    if st.button("Generate Audio Script"):
-        copy = generate_ad_copy(niche, goal)
-        st.json(copy)
-
-# ======================================================
+# ==========================================================
 # META TAB
-# ======================================================
+# ==========================================================
 with tab_meta:
-    st.subheader("📣 Meta Campaign Builder")
+    st.subheader("Meta Campaign Generator")
 
-    ok, msg = meta_connection_status(st.secrets)
-    st.success(msg) if ok else st.warning(msg)
+    meta_ok, meta_msg = meta_connection_status(st.secrets)
+    if not meta_ok:
+        st.warning(meta_msg)
+    else:
+        st.success(meta_msg)
 
-    if st.button("Generate Meta Ad Copy"):
-        copy = generate_ad_copy(niche, goal)
-        st.json(copy)
+    headline = generate_headlines("Meta", niche, goal)[0]
+    primary = generate_primary_text(niche, goal)
+    cta = generate_ctas(goal)[0]
 
-# ======================================================
-# INFLUENCER + EMAIL TAB
-# ======================================================
+    st.markdown("### Suggested Ad Copy")
+    st.write("Headline:", headline)
+    st.write("Primary Text:", primary)
+    st.write("CTA:", cta)
+
+# ==========================================================
+# GOOGLE / YOUTUBE TAB
+# ==========================================================
+with tab_google:
+    st.subheader("Google & YouTube Campaign Planner")
+
+    st.write("Suggested Headlines:")
+    for h in generate_headlines("Google", niche, goal):
+        st.write("-", h)
+
+# ==========================================================
+# TIKTOK TAB
+# ==========================================================
+with tab_tiktok:
+    st.subheader("TikTok Creative Planner")
+
+    hooks = generate_headlines("TikTok", niche, goal)
+    st.markdown("### Video Hooks")
+    for h in hooks:
+        st.write("-", h)
+
+# ==========================================================
+# SPOTIFY TAB
+# ==========================================================
+with tab_spotify:
+    st.subheader("Spotify Audio Planner")
+
+    st.markdown("### Audio Script Starter")
+    st.write(generate_primary_text(niche, "Awareness"))
+
+# ==========================================================
+# INFLUENCER TAB
+# ==========================================================
 with tab_influencer:
-    st.subheader("🤝 Influencer Discovery & Outreach")
+    st.subheader("Influencer Discovery")
 
-    influencer_seed = st.text_input(
-        "Influencer Topic / Keyword",
-        placeholder="streetwear influencers, hip hop creators",
-    )
-
-    if influencer_seed:
-        results = find_influencers(influencer_seed)
-        st.dataframe(results)
-
-        st.markdown("### Outreach Email Template")
-        st.code(
-            f"""
-Hi {{Creator Name}},
-
-We love your content around {influencer_seed}.
-We’re working with a brand in the {niche} space and would love to collaborate.
-
-Let us know if you're interested!
-
-– Sullivan’s Advertisements
-            """,
-            language="text",
-        )
+    niche_kw = st.text_input("Influencer Niche Keyword")
+    if st.button("Find Influencers"):
+        st.json(find_influencers(niche_kw))
