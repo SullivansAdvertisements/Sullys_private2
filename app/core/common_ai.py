@@ -1,68 +1,67 @@
 # core/common_ai.py
-# AI-style generators (safe logic, no external API calls)
+# Phase E – Creative Intelligence Engine
 
+from typing import List
 import random
 
 
-def generate_headlines(platform: str, niche: str, goal: str, count: int = 5):
-    base = {
-        "Music": [
-            "New music just dropped",
-            "Your next favorite artist",
-            "This track is going viral",
-            "Sound you haven’t heard before",
+def generate_headlines(platform: str, niche: str, goal: str) -> List[str]:
+    base_hooks = {
+        "music": [
+            "This song is blowing up",
+            "You haven’t heard this yet",
+            "The sound everyone’s using",
         ],
-        "Clothing": [
-            "Limited drop now live",
+        "clothing": [
+            "This drop is almost gone",
             "Streetwear done right",
-            "Don’t miss this collection",
-            "Built for everyday wear",
+            "Your next favorite fit",
         ],
-        "Homecare": [
+        "homecare": [
             "Care your family can trust",
             "Support when it matters most",
-            "Quality home care near you",
-            "Peace of mind starts here",
+            "Reliable home care starts here",
         ],
     }
 
-    platform_flavor = {
-        "Meta": ["Tap to learn more", "Shop now", "See why everyone’s switching"],
-        "Google": ["Get started today", "Compare options", "Find out more"],
-        "TikTok": ["Wait till the end", "This changed everything", "You need this"],
-        "Spotify": ["Listen now", "Discover the sound", "Tap to play"],
-    }
-
-    headlines = []
-    for _ in range(count):
-        h = f"{random.choice(base.get(niche, ['Discover more']))} – {random.choice(platform_flavor.get(platform, ['Learn more']))}"
-        headlines.append(h)
-
-    return headlines
+    hooks = base_hooks.get(niche.lower(), ["Don’t miss this"])
+    return [
+        f"{hook} | {platform}" for hook in random.sample(hooks, min(3, len(hooks)))
+    ]
 
 
-def generate_primary_text(platform: str, niche: str, goal: str):
-    templates = {
-        "Music": "If you love discovering new sounds, this is for you. Tap in and listen now.",
-        "Clothing": "Designed for comfort and style. Limited quantities available.",
-        "Homecare": "Trusted, compassionate care tailored to your family’s needs.",
-    }
-
-    platform_cta = {
-        "Meta": "Tap below to learn more.",
-        "Google": "Visit our site to get started.",
-        "TikTok": "Watch now and see why everyone’s talking.",
-        "Spotify": "Listen now.",
-    }
-
-    return f"{templates.get(niche, 'Discover something better today.')} {platform_cta.get(platform, '')}"
+def generate_primary_text(
+    platform: str,
+    niche: str,
+    goal: str,
+    offer: str = "Learn more today",
+) -> List[str]:
+    templates = [
+        f"Looking for {niche}? {offer}. Tap to see why people are switching.",
+        f"This is for anyone serious about {niche}. {offer}.",
+        f"{niche.title()} made simple. {offer}.",
+    ]
+    return templates
 
 
-def generate_cta(platform: str):
+def generate_ctas(platform: str, goal: str) -> List[str]:
     ctas = {
-        "Meta": ["Learn More", "Shop Now", "Sign Up"],
-        "Google": ["Get Started", "Learn More"],
-        "TikTok": ["Learn More", "Shop Now"],
-        "Spotify": ["Listen Now"],
+        "awareness": ["Learn More", "Watch Now"],
+        "traffic": ["Learn More", "Visit Site"],
+        "leads": ["Sign Up", "Get Quote"],
+        "sales": ["Shop Now", "Buy Now"],
     }
-    return random.choice(ctas.get(platform, ["Learn More"]))
+    return ctas.get(goal.lower(), ["Learn More"])
+
+
+def generate_full_creative(
+    platform: str,
+    niche: str,
+    goal: str,
+    offer: str,
+):
+    return {
+        "headlines": generate_headlines(platform, niche, goal),
+        "primary_text": generate_primary_text(platform, niche, goal, offer),
+        "ctas": generate_ctas(platform, goal),
+    }
