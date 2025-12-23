@@ -22,7 +22,33 @@ st.set_page_config(
     page_icon="🌺",
     layout="wide",
 )
+def set_background(image_path: str):
+    import base64
+    from pathlib import Path
 
+    image_file = Path(image_path)
+    if not image_file.exists():
+        st.warning(f"Background image not found: {image_path}")
+        return
+
+    with open(image_file, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode()
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/png;base64,{encoded}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )set_background("assets/main_bg.png")
+    
 st.markdown(
     """
     <style>
