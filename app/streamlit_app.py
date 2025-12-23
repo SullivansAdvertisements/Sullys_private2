@@ -1,242 +1,152 @@
 import streamlit as st
-import streamlit as st
 import pandas as pd
-from datetime import datetime
+import base64
+from pathlib import Path
 
-# -------------------------------
-# PAGE CONFIG
-# -------------------------------
+from core.common_ai import generate_headlines, generate_primary_text
+from research.trends_client import get_google_trends
+from research.meta_library import search_meta_ads
+from research.tiktok_trends import get_tiktok_trends
+
+# -------------------------
+# Page Config
+# -------------------------
 st.set_page_config(
-    page_title="Sully's Multi-Platform Media Planner",
-    page_icon="📊",
+    page_title="Sully’s Media Planner",
+    page_icon="🌺",
     layout="wide",
 )
 
-# -------------------------------
-# GLOBAL STYLING (LIGHT MODE ONLY)
-# -------------------------------
+# -------------------------
+# Assets
+# -------------------------
+APP_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = APP_DIR / "assets"
+
+LOGO_PATH = ASSETS_DIR / "sullivans_logo.png"
+BACKGROUND_PATH = ASSETS_DIR / "main_bg.png"
+SIDEBAR_BG_PATH = ASSETS_DIR / "sidebar_bg.png"
+
+
+def load_base64(path):
+    if not path.exists():
+        return ""
+    return base64.b64encode(path.read_bytes()).decode()
+
+
+bg = load_base64(BACKGROUND_PATH)
+sidebar_bg = load_base64(SIDEBAR_BG_PATH)
+
+# -------------------------
+# Styling
+# -------------------------
 st.markdown(
-    """
+    f"""
     <style>
-    .stApp {
-        background-color: #ffffff;
-        color: #111111;
-    }
-    body, p, span, label, div {
-        color: #111111 !important;
-        font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    h1, h2, h3 {
-        font-weight: 700;
-    }
-    [data-testid="stSidebar"] {
-        background-color: #f4f4f4;
-    }
+    .stApp {{
+        background-image: url("data:image/png;base64,{bg}");
+        background-size: cover;
+        background-position: center;
+    }}
+
+    [data-testid="stSidebar"] {{
+        background-image: url("data:image/png;base64,{sidebar_bg}");
+        background-size: cover;
+    }}
+
+    body, p, label, span, div {{
+        color: #111 !important;
+        font-weight: 500;
+    }}
+
+    h1, h2, h3 {{
+        font-weight: 800;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# -------------------------------
-# HEADER
-# -------------------------------
-st.markdown("## 🚀 Sully’s Multi-Platform Campaign Planner")
-st.caption(
-    "Strategy • Research • Campaign Planning for Meta, Google, TikTok & Spotify"
-)
-st.markdown("---")
+# -------------------------
+# Header
+# -------------------------
+cols = st.columns([1, 4])
+with cols[0]:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), width=120)
+with cols[1]:
+    st.markdown("## Sully’s Multi-Platform Media Planner")
+    st.caption("Phase 2 — Research & Creative Intelligence")
 
-# -------------------------------
-# SIDEBAR CONTROLS
-# -------------------------------
-with st.sidebar:
-    st.markdown("### ⚙️ Global Settings")
-
-    monthly_budget = st.number_input(
-        "Monthly Budget (USD)",
-        min_value=500,
-        value=5000,
-        step=500,
-    )
-
-    platforms = st.multiselect(
-        "Platforms to include",
-        ["Meta", "Google / YouTube", "TikTok", "Spotify"],
-        default=["Meta", "Google / YouTube", "TikTok"],
-    )
-
-    st.markdown("---")
-    st.caption("Client-safe • Read-only ready")
-
-# -------------------------------
-# TABS
-# -------------------------------
-tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta = st.tabs(
-    [
-        "🧠 Strategy",
-        "📊 Research & Trends",
-        "🔍 Google / YouTube",
-        "🎵 TikTok",
-        "🎧 Spotify",
-        "📣 Meta",
-    ]
+# -------------------------
+# Tabs
+# -------------------------
+tab_strategy, tab_research = st.tabs(
+    ["🧠 Strategy", "📊 Research & Trends"]
 )
 
-# ===============================
-# STRATEGY TAB
-# ===============================
+# =========================
+# TAB 1 — STRATEGY (lite)
+# =========================
 with tab_strategy:
-    st.subheader("🧠 Strategy Engine")
+    st.subheader("🧠 Strategy Overview")
 
-    niche = st.selectbox(
-        "Business Type",
-        ["Music Artist", "Clothing Brand", "Home Care", "Other"],
-    )
+    niche = st.selectbox("Industry", ["Music", "Clothing", "Homecare"])
+    goal = st.selectbox("Goal", ["Awareness", "Traffic", "Leads", "Sales"])
+    budget = st.number_input("Monthly Budget ($)", min_value=500, value=5000, step=500)
 
-    goal = st.selectbox(
-        "Primary Goal",
-        ["Awareness", "Traffic", "Leads", "Sales"],
-    )
+    st.success("Strategy locked. Use Research tab to build creatives.")
 
-    geo = st.text_input("Primary Market", value="United States")
-
-    st.markdown("### 📊 Recommended Budget Split")
-
-    if monthly_budget >= 500:
-        splits = {}
-        if "Meta" in platforms:
-            splits["Meta"] = round(monthly_budget * 0.35, 2)
-        if "Google / YouTube" in platforms:
-            splits["Google / YouTube"] = round(monthly_budget * 0.30, 2)
-        if "TikTok" in platforms:
-            splits["TikTok"] = round(monthly_budget * 0.20, 2)
-        if "Spotify" in platforms:
-            splits["Spotify"] = round(monthly_budget * 0.15, 2)
-
-        df = pd.DataFrame(
-            [{"Platform": k, "Monthly Budget ($)": v} for k, v in splits.items()]
-        )
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.warning("Minimum monthly budget is $500.")
-
-# ===============================
-# RESEARCH TAB
-# ===============================
+# =========================
+# TAB 2 — RESEARCH & TRENDS
+# =========================
 with tab_research:
-    st.subheader("📊 Research & Trend Discovery")
+    st.subheader("📊 Research & Creative Intelligence")
 
-    seed = st.text_input(
-        "Keyword / Interest Seed",
-        placeholder="streetwear, hip hop artist, home care services",
-    )
-
-    timeframe = st.selectbox(
-        "Time Range",
-        ["1 month", "3 months", "12 months", "5 years"],
-    )
-
-    st.markdown("### 🔍 What this tab does (Phase-1)")
-    st.info(
-        """
-        • Keyword expansion  
-        • Interest validation  
-        • Location & demographic planning  
-        • Platform-agnostic research  
-
-        (Live APIs plug in Phase-2)
-        """
-    )
+    seed = st.text_input("Seed keyword / interest", placeholder="streetwear, home care, hip hop")
+    country = st.selectbox("Country", ["US", "CA", "UK", "AU"])
 
     if st.button("Run Research"):
-        if seed:
-            st.success("Research generated (placeholder)")
-            st.write(
-                {
-                    "Top Interests": [seed, f"{seed} marketing", f"{seed} ads"],
-                    "Best Platforms": platforms,
-                    "Top Locations": ["US", "CA", "UK"],
-                    "Age Focus": "18-45",
-                }
-            )
+        if not seed:
+            st.warning("Enter a seed keyword.")
         else:
-            st.warning("Enter a keyword or interest.")
+            # --- Google Trends ---
+            st.markdown("### 🔍 Google Trends")
+            trends = get_google_trends(seed, country)
+            if "error" in trends:
+                st.error(trends["error"])
+            else:
+                if "interest_over_time" in trends:
+                    st.line_chart(trends["interest_over_time"])
+                if "regions" in trends:
+                    st.dataframe(trends["regions"].head(10))
 
-# ===============================
-# GOOGLE / YOUTUBE TAB
-# ===============================
-with tab_google:
-    st.subheader("🔍 Google / YouTube Campaign Planner")
+            # --- Meta Ad Library ---
+            st.markdown("### 📣 Meta Ad Library")
+            ads = search_meta_ads(seed, country)
+            if ads:
+                st.dataframe(pd.DataFrame(ads))
+            else:
+                st.info("No ads returned.")
 
-    if "Google / YouTube" not in platforms:
-        st.info("Platform not selected in sidebar.")
-    else:
-        st.text_input("Landing Page URL", value="https://example.com")
-        st.text_area(
-            "Search Keywords",
-            placeholder="buy streetwear online\nbest home care near me",
-        )
-        st.button("Generate Google Campaign (Preview Only)")
-        st.caption("API execution added in Phase-2")
+            # --- TikTok Trends ---
+            st.markdown("### 🎵 TikTok Trends")
+            tiktok = get_tiktok_trends(seed)
+            if tiktok:
+                st.dataframe(pd.DataFrame(tiktok))
+            else:
+                st.info("No TikTok trend data.")
 
-# ===============================
-# TIKTOK TAB
-# ===============================
-with tab_tiktok:
-    st.subheader("🎵 TikTok Campaign Planner")
+            # --- AI Creatives ---
+            st.markdown("### ✍️ Ad Copy Generator")
 
-    if "TikTok" not in platforms:
-        st.info("Platform not selected in sidebar.")
-    else:
-        st.text_area(
-            "Creative Hooks",
-            placeholder="POV you found your new favorite brand\nWatch till the end",
-            key="tiktok_hooks",
-        )
-        st.button("Generate TikTok Campaign (Preview Only)")
-        st.caption("TikTok Ads API added in Phase-2")
+            headlines = generate_headlines("Meta", niche, goal)
+            body = generate_primary_text("Meta", niche, goal)
 
-# ===============================
-# SPOTIFY TAB
-# ===============================
-with tab_spotify:
-    st.subheader("🎧 Spotify Audio Campaign")
+            st.write("**Headlines**")
+            for h in headlines:
+                st.write("•", h)
 
-    if "Spotify" not in platforms:
-        st.info("Platform not selected in sidebar.")
-    else:
-        st.text_area(
-            "30-Second Audio Script",
-            placeholder="Hey, while you're listening, check out...",
-            key="spotify_script",
-        )
-        st.button("Generate Spotify Plan (Preview Only)")
-        st.caption("Spotify Ads Studio only (no public API)")
-
-# ===============================
-# META TAB
-# ===============================
-with tab_meta:
-    st.subheader("📣 Meta (Facebook & Instagram)")
-
-    if "Meta" not in platforms:
-        st.info("Platform not selected in sidebar.")
-    else:
-        st.markdown("### Campaign Preview")
-        st.text_input("Campaign Name", value="Sully Meta Campaign")
-        st.text_area(
-            "Primary Text",
-            placeholder="Limited drop live now. Tap in.",
-            key="meta_primary",
-        )
-        st.text_input("Headline", value="New Collection Out Now")
-        st.button("Generate Meta Campaign (Preview Only)")
-        st.caption("Graph API creation enabled in Phase-2")
-
-# -------------------------------
-# FOOTER
-# -------------------------------
-st.markdown("---")
-st.caption(
-    f"Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} • Client-Safe Mode"
-)
+            st.write("**Primary Text**")
+            for b in body:
+                st.write("•", b)
