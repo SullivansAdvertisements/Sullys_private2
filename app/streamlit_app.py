@@ -48,6 +48,7 @@ def set_background(image_path: str):
         """,
         unsafe_allow_html=True,
     )
+    
     set_background("assets/main_bg.png")
     
 st.markdown(
