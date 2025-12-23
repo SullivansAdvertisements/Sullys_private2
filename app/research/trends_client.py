@@ -1,78 +1,111 @@
 # research/trends_client.py
-"""
-Google Trends + basic research utilities.
-NO Streamlit UI code in this file.
-"""
+# Phase B – Google / YouTube Trends Research Engine
 
-from typing import List, Dict
+from typing import List, Dict, Any
+
 import pandas as pd
 
 try:
     from pytrends.request import TrendReq
-    HAS_PYTRENDS = True
+    HAS_TRENDS = True
 except ImportError:
-    HAS_PYTRENDS = False
+    HAS_TRENDS = False
 
 
 def get_google_trends(
-    keywords: List[str],
+    seed_terms: List[str],
     geo: str = "US",
     timeframe: str = "today 12-m",
-) -> Dict:
+    gprop: str = "",
+) -> Dict[str, Any]:
     """
-    Fetch Google Trends data for keywords.
-    Returns safe JSON-like dict for Streamlit display.
+    Pulls Google Trends data safely.
+    Returns dict with:
+    - interest_over_time (DataFrame)
+    - related_queries (list)
+    - by_region (DataFrame)
     """
 
-    if not HAS_PYTRENDS:
-        return {
-            "error": "pytrends not installed",
-            "interest_over_time": None,
-            "related_queries": [],
-        }
+    if not HAS_TRENDS:
+        return {"error": "pytrends not installed"}
 
-    if not keywords:
-        return {
-            "error": "No keywords provided",
-            "interest_over_time": None,
-            "related_queries": [],
-        }
+    if not seed_terms:
+        return {"error": "No seed terms provided"}
 
     try:
         pytrends = TrendReq(hl="en-US", tz=360)
+
         pytrends.build_payload(
-            keywords,
+            seed_terms,
             timeframe=timeframe,
             geo=geo,
+            gprop=gprop,
         )
 
-        data = {}
+        result: Dict[str, Any] = {}
 
+        # Interest over time
         iot = pytrends.interest_over_time()
         if isinstance(iot, pd.DataFrame) and not iot.empty:
             if "isPartial" in iot.columns:
                 iot = iot.drop(columns=["isPartial"])
-            data["interest_over_time"] = iot
-        else:
-            data["interest_over_time"] = None
+            result["interest_over_time"] = iot
 
-        related = pytrends.related_queries()
-        queries = []
+        # Region data
+        try:
+            region_df = pytrends.interest_by_region(
+                resolution="COUNTRY",
+                inc_low_vol=True,
+                inc_geo_code=True,
+            )
+            if isinstance(region_df, pd.DataFrame) and not region_df.empty:
+                result["by_region"] = region_df.sort_values(
+                    by=region_df.columns[0], ascending=False
+                )
+        except Exception:
+            pass
 
-        if isinstance(related, dict):
-            for kw, blocks in related.items():
-                for section in ("top", "rising"):
-                    df = blocks.get(section)
-                    if df is not None and "query" in df.columns:
-                        queries.extend(df["query"].tolist())
+        # Related queries
+        related_queries = []
+        rq = pytrends.related_queries()
+        if isinstance(rq, dict):
+            for term, buckets in rq.items():
+                for bucket in ["top", "rising"]:
+                    df = buckets.get(bucket)
+                    if isinstance(df, pd.DataFrame) and "query" in df.columns:
+                        related_queries.extend(
+                            df["query"].dropna().astype(str).tolist()
+                        )
 
-        data["related_queries"] = list(dict.fromkeys(queries))[:50]
+        # De-duplicate while preserving order
+        seen = set()
+        cleaned = []
+        for q in related_queries:
+            if q not in seen:
+                seen.add(q)
+                cleaned.append(q)
 
-        return data
+        result["related_queries"] = cleaned[:100]
+
+        return result
 
     except Exception as e:
-        return {
-            "error": str(e),
-            "interest_over_time": None,
-            "related_queries": [],
-        }
+        return {"error": str(e)}
+
+
+def expand_keywords(
+    base_keywords: List[str],
+    trends_output: Dict[str, Any],
+    limit: int = 50,
+) -> List[str]:
+    """
+    Combines seed keywords + related queries into an expanded list.
+    """
+    expanded = list(base_keywords)
+
+    rq = trends_output.get("related_queries", [])
+    for q in rq:
+        if q not in expanded:
+            expanded.append(q)
+
+    return expanded[:limit]
