@@ -18,24 +18,6 @@ except ImportError:
 # Page config + styling
 # ------------------------------
 st.set_page_config(
-def set_background(image_file: str):
-    import base64
-    with open(image_file, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode()
-
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background-image: url("data:image/png;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
     page_title="Sully’s Media Planner",
     page_icon="🌺",
     layout="wide",
