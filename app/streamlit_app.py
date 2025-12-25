@@ -81,7 +81,45 @@ with tab_strategy:
         splits = allocate_budget(budget, goal)
         st.success("Budget Allocation")
         st.json({k: v for k, v in splits.items() if k in [p.lower() for p in platforms]})
+st.subheader("🧠 Strategy Engine")
 
+monthly_budget = st.number_input(
+    "Monthly Budget ($)",
+    min_value=500,
+    value=5000,
+    step=500,
+)
+
+goal = st.selectbox(
+    "Primary Goal",
+    ["Awareness", "Traffic", "Leads", "Sales"],
+)
+
+if st.button("Generate Strategy"):
+    strategy = generate_strategy_plan(
+        budget=monthly_budget,
+        goal=goal,
+    )
+
+    if "error" in strategy:
+        st.error(strategy["error"])
+    else:
+        st.success("Strategy Generated")
+
+        if strategy["note"]:
+            st.info(strategy["note"])
+
+        st.markdown("### Platform Allocation")
+        st.json(strategy["allocations"])
+
+        if strategy["warnings"]:
+            st.markdown("### ⚠️ Warnings")
+            for w in strategy["warnings"]:
+                st.warning(w)
+
+        st.markdown("### 📈 Optimization Recommendations")
+        for r in strategy["recommendations"]:
+            st.write(f"• {r}")
 # =========================
 # TAB 2 — RESEARCH
 # =========================
