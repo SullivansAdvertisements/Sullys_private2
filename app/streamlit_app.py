@@ -15,7 +15,48 @@ else:
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+from pathlib import Path
+import streamlit as st
 
+BASE_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = BASE_DIR / "assets"
+
+def set_background(image_path):
+    if not image_path.exists():
+        st.error(f"Background image not found: {image_path}")
+        return
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background: url("file://{image_path}") no-repeat center center fixed;
+            background-size: cover;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+def set_sidebar_bg(image_path):
+    if not image_path.exists():
+        st.error(f"Sidebar background not found: {image_path}")
+        return
+
+    st.markdown(
+        f"""
+        <style>
+        [data-testid="stSidebar"] {{
+            background: url("file://{image_path}") no-repeat center center;
+            background-size: cover;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+set_background(ASSETS_DIR / "main_bg.png")
+set_sidebar_bg(ASSETS_DIR / "sidebar_bg.png")
 # Optional Google Trends
 try:
     from pytrends.request import TrendReq
