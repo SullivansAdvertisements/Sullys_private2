@@ -1,107 +1,124 @@
-import os
-import streamlit as st
+# =========================
+# Sully's Media Planner
+# =========================
 
-st.write("Current working directory:", os.getcwd())
-st.write("Files in root:", os.listdir("."))
-if os.path.exists("assets"):
-    st.write("Assets folder:", os.listdir("assets"))
-else:
-    st.error("❌ assets/ folder not found")
-# ==============================
-# Sully’s Multi-Platform Media Planner
-# Phases A → E (STABLE)
-# ==============================
-
+# -------- IMPORTS (NO st.* calls here) --------
 import streamlit as st
-import pandas as pd
 from pathlib import Path
-from pathlib import Path
-import streamlit as st
 
+# -------- MUST BE FIRST STREAMLIT COMMAND --------
+st.set_page_config(
+    page_title="Sully’s Media Planner",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# -------- PATHS --------
 BASE_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = BASE_DIR / "assets"
 
-def set_background(image_path):
+LOGO_PATH = ASSETS_DIR / "sullivans_logo.png"
+MAIN_BG_PATH = ASSETS_DIR / "main_bg.png"
+SIDEBAR_BG_PATH = ASSETS_DIR / "sidebar_bg.png"
+
+
+# -------- BACKGROUND HELPERS --------
+def set_background(image_path: Path):
     if not image_path.exists():
-        st.error(f"Background image not found: {image_path}")
+        st.warning(f"⚠️ Background image not found: {image_path.name}")
         return
 
     st.markdown(
         f"""
         <style>
         .stApp {{
-            background: url("file://{image_path}") no-repeat center center fixed;
-            background-size: cover;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ------------------------------
-# Page config + styling
-# ------------------------------
-st.set_page_config(
-    page_title="Sully’s Media Planner",
-    page_icon="🌺",
-    layout="wide",
-)
-
-def set_background(image_path: str):
-    import base64
-    from pathlib import Path
-    import streamlit as st
-
-    img = Path(image_path)
-    if not img.exists():
-        st.error(f"❌ Background image not found: {image_path}")
-        return
-
-    encoded = base64.b64encode(img.read_bytes()).decode()
-
-    st.markdown(
-        f"""
-        <style>
-        html, body {{
-            height: 100%;
-            margin: 0;
-        }}
-
-        [data-testid="stAppViewContainer"] {{
-            background-image: url("data:image/png;base64,{encoded}");
+            background-image: url("file://{image_path}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
         }}
         </style>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
-    
-set_background("assets/main_bg.png")
-    
+
+
+def set_sidebar_background(image_path: Path):
+    if not image_path.exists():
+        st.warning(f"⚠️ Sidebar background not found: {image_path.name}")
+        return
+
+    st.markdown(
+        f"""
+        <style>
+        [data-testid="stSidebar"] {{
+            background-image: url("file://{image_path}");
+            background-size: cover;
+            background-position: center;
+        }}
+
+        /* Make sidebar text readable */
+        [data-testid="stSidebar"] * {{
+            color: white !important;
+            font-weight: 500;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# -------- APPLY BACKGROUNDS --------
+set_background(MAIN_BG_PATH)
+set_sidebar_background(SIDEBAR_BG_PATH)
+
+
+# -------- GLOBAL TEXT VISIBILITY FIX --------
 st.markdown(
     """
     <style>
-    .stApp { background-color: #f7f7fb; }
-    body, p, div, span, label { color: #111 !important; }
-    h1, h2, h3, h4 { font-weight: 700; }
-    [data-testid="stSidebar"] { background-color: #151826; }
-    [data-testid="stSidebar"] * { color: #fff !important; }
+    body, p, span, label, div {
+        color: #111 !important;
+    }
+
+    h1, h2, h3, h4 {
+        color: #111 !important;
+        font-weight: 700;
+    }
+
+    .stTabs [role="tab"] {
+        color: #111 !important;
+        font-weight: 600;
+    }
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
-APP_DIR = Path(__file__).resolve().parent
-LOGO_PATH = APP_DIR / "sullivans_logo.png"
 
-# ------------------------------
-# Helpers
-# ------------------------------
-def parse_multiline(raw: str):
-    return [x.strip() for x in raw.replace(",", "\n").split("\n") if x.strip()]
+# =========================
+# HEADER
+# =========================
+header_left, header_right = st.columns([1, 4])
 
+with header_left:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), use_column_width=True)
+
+with header_right:
+    st.markdown("## 🚀 Sully’s Multi-Platform Media Planner")
+    st.caption("Strategy • Research • Campaign Creation • Scaling")
+
+
+st.markdown("---")
+
+# =========================
+# SIDEBAR LOGO
+# =========================
+with st.sidebar:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), use_column_width=True)
+    st.markdown("### Navigation")
 # ------------------------------
 # Phase E – Creative Brain
 # ------------------------------
