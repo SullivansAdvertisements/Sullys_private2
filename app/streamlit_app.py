@@ -65,22 +65,6 @@ tab_strategy, tab_research, tab_campaigns, tab_influencer, tab_scale = st.tabs([
 # TAB 1 — STRATEGY
 # =========================
 with tab_strategy:
-    st.subheader("Strategy Planner")
-
-    niche = st.selectbox("Niche", ["Music", "Clothing", "Homecare"])
-    goal = st.selectbox("Primary Goal", ["Awareness", "Traffic", "Leads", "Sales"])
-    budget = st.number_input("Monthly Budget ($)", min_value=500.0, value=5000.0)
-
-    platforms = st.multiselect(
-        "Platforms to use",
-        ["Meta", "Google", "TikTok", "YouTube", "Spotify"],
-        default=["Meta", "Google", "TikTok"],
-    )
-
-    if st.button("Generate Strategy"):
-        splits = allocate_budget(budget, goal)
-        st.success("Budget Allocation")
-        st.json({k: v for k, v in splits.items() if k in [p.lower() for p in platforms]})
 st.subheader("🧠 Strategy Engine")
 
 monthly_budget = st.number_input(
