@@ -1,129 +1,86 @@
-# core/strategies.py
-# Budget allocation + scaling logic (Phase 3 stable)
+"""
+Phase 2 – Strategy & Budget Engine
+Handles:
+- Budget allocation
+- Platform weighting
+- Scaling logic
+"""
 
-from typing import Dict
-
-
-MIN_MONTHLY_BUDGET = 500  # enforced minimum
-
-
-def allocate_budget(
-    monthly_budget: float,
-    goal: str,
-    enabled_platforms: list[str] | None = None,
-) -> Dict[str, float]:
+def validate_budget(monthly_budget: float, minimum: float = 500) -> float:
     """
-    Allocates monthly budget across platforms based on goal.
-    Returns dict: {platform: budget_amount}
+    Enforce minimum monthly budget.
     """
+    if monthly_budget < minimum:
+        raise ValueError(f"Minimum monthly budget is ${minimum}")
+    return float(monthly_budget)
 
-    if monthly_budget < MIN_MONTHLY_BUDGET:
-        raise ValueError(
-            f"Monthly budget must be at least ${MIN_MONTHLY_BUDGET}"
-        )
 
+def allocate_budget(monthly_budget: float, goal: str) -> dict:
+    """
+    Allocate budget across platforms based on primary goal.
+    """
     goal = goal.lower()
-    enabled_platforms = enabled_platforms or [
-        "Meta",
-        "Google",
-        "TikTok",
-        "Spotify",
-    ]
+    monthly_budget = validate_budget(monthly_budget)
 
-    # Default allocation logic
     if goal in ["sales", "conversions"]:
         weights = {
-            "Meta": 0.4,
-            "Google": 0.35,
-            "TikTok": 0.15,
-            "Spotify": 0.10,
-        }
-    elif goal in ["leads"]:
-        weights = {
-            "Meta": 0.45,
+            "Meta": 0.35,
             "Google": 0.30,
             "TikTok": 0.15,
-            "Spotify": 0.10,
+            "YouTube": 0.15,
+            "Spotify": 0.05,
         }
-    elif goal in ["awareness"]:
+    elif goal == "leads":
         weights = {
-            "Meta": 0.35,
-            "TikTok": 0.30,
-            "Spotify": 0.20,
-            "Google": 0.15,
+            "Meta": 0.40,
+            "Google": 0.35,
+            "TikTok": 0.10,
+            "YouTube": 0.10,
+            "Spotify": 0.05,
+        }
+    elif goal == "awareness":
+        weights = {
+            "Meta": 0.30,
+            "TikTok": 0.25,
+            "YouTube": 0.25,
+            "Spotify": 0.10,
+            "Google": 0.10,
         }
     else:  # traffic / default
         weights = {
-            "Meta": 0.35,
+            "Meta": 0.30,
             "Google": 0.30,
             "TikTok": 0.20,
-            "Spotify": 0.15,
+            "YouTube": 0.15,
+            "Spotify": 0.05,
         }
 
-    # Normalize for enabled platforms only
-    active_weights = {
-        k: v for k, v in weights.items() if k in enabled_platforms
+    allocation = {
+        platform: round(monthly_budget * pct, 2)
+        for platform, pct in weights.items()
     }
-    total_weight = sum(active_weights.values())
-
-    allocation = {}
-    for platform, weight in active_weights.items():
-        allocation[platform] = round(
-            monthly_budget * (weight / total_weight), 2
-        )
 
     return allocation
 
 
-def recommend_scaling(
-    performance: Dict[str, float],
-    current_budget: Dict[str, float],
-    scale_factor: float = 0.2,
-) -> Dict[str, float]:
+def scaling_recommendations(monthly_budget: float) -> dict:
     """
-    Simple auto-scaling recommendation engine.
-    performance: {platform: ROAS or CPA score}
+    Suggest how to scale when budget increases.
     """
+    monthly_budget = validate_budget(monthly_budget)
 
-    updated_budget = current_budget.copy()
-
-    if not performance:
-        return updated_budget
-
-    avg_perf = sum(performance.values()) / len(performance)
-
-    for platform, perf in performance.items():
-        if perf > avg_perf:
-            updated_budget[platform] *= (1 + scale_factor)
-        else:
-            updated_budget[platform] *= (1 - scale_factor / 2)
-
-        updated_budget[platform] = round(updated_budget[platform], 2)
-
-    return updated_budget
-    def allocate_budget(budget: float, goal: str) -> dict:
-    goal = goal.lower()
-
-    if goal in ["sales", "conversions"]:
-        split = {
-            "Meta": 0.40,
-            "Google": 0.30,
-            "TikTok": 0.20,
-            "Spotify": 0.10,
+    if monthly_budget < 2000:
+        return {
+            "focus": "Validation",
+            "recommendation": "Test creatives & audiences before scaling.",
         }
-    elif goal == "awareness":
-        split = {
-            "Meta": 0.30,
-            "TikTok": 0.30,
-            "YouTube": 0.25,
-            "Spotify": 0.15,
+    elif monthly_budget < 5000:
+        return {
+            "focus": "Optimization",
+            "recommendation": "Double down on best-performing platform.",
         }
     else:
-        split = {
-            "Meta": 0.35,
-            "Google": 0.35,
-            "TikTok": 0.20,
-            "Spotify": 0.10,
+        return {
+            "focus": "Scale",
+            "recommendation": "Expand to new platforms + retargeting layers.",
         }
-
-    return {k: round(budget * v, 2) for k, v in split.items()}
