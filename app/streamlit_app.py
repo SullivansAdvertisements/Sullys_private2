@@ -19,7 +19,7 @@ from research.meta_library import search_meta_ads
 
 # ===== INFLUENCER + EMAIL =====
 from influencer.influencer import find_influencers
-from email.outreach import generate_outreach_email
+from email_marketing.outreach import generate_outreach_email
 
 # =========================
 # PAGE CONFIG (MUST BE FIRST)
