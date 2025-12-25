@@ -141,25 +141,32 @@ if st.button("Generate Strategy Plan"):
 # ============================================================
 # RESEARCH TAB (USES research/ FOLDER)
 # ============================================================
-with tabs[1]:  # Research & Trends tab
+with tabs[1]:  # 📊 Research & Trends
     st.header("📊 Research & Trends Engine")
-    keyword = st.text_input("Enter keyword or niche", value="music artist")
 
-    timeframe = st.selectbox(
-        "Time Range",
-        [
-            "now 7-d",
-            "today 1-m",
-            "today 3-m",
-            "today 12-m",
-            "today 5-y"
-        ]
-    )
+    niche = st.text_input("Niche / Industry")
+    goal = st.selectbox("Campaign Goal", ["Awareness", "Traffic", "Conversions"])
 
-    geo = st.selectbox(
-        "Geography",
-        ["US", "Worldwide"]
-    )
+    if st.button("Run Research"):
+        from research.trends_client import run_full_research
+
+        research_data = run_full_research(niche, goal)
+
+        # ✅ THIS IS THE DATA CONTRACT (DO NOT MOVE IT)
+        st.session_state["research"] = {
+            "niche": niche,
+            "goal": goal,
+            "keywords": research_data["keywords"],
+            "hashtags": research_data["hashtags"],
+            "locations": research_data["locations"],
+            "audiences": research_data["audiences"],
+            "age_range": research_data.get("age_range", "18-34"),
+            "gender": research_data.get("gender", "All"),
+            "platform_signals": research_data.get("platform_signals", {})
+        }
+
+        st.success("Research completed and shared with all platform tabs")
+        st.json(st.session_state["research"])
     
     st.markdown("#### Platforms")
     st.checkbox("Google Trends", value=True)
