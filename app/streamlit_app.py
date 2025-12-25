@@ -141,9 +141,8 @@ if st.button("Generate Strategy Plan"):
 # ============================================================
 # RESEARCH TAB (USES research/ FOLDER)
 # ============================================================
-with tab_research:
-    with tabs[1]:  # Research & Trends tab
-    st.header("📊 Research & Trends Engine")
+with tab_with tabs[1]:  # Research & Trends tab
+    st.header("📊 Research & Trends Engine"
 
     keyword = st.text_input("Enter keyword or niche", value="music artist")
 
