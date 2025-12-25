@@ -38,32 +38,6 @@ def set_background(image_path):
         unsafe_allow_html=True
     )
 
-def set_sidebar_bg(image_path):
-    if not image_path.exists():
-        st.error(f"Sidebar background not found: {image_path}")
-        return
-
-    st.markdown(
-        f"""
-        <style>
-        [data-testid="stSidebar"] {{
-            background: url("file://{image_path}") no-repeat center center;
-            background-size: cover;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-set_background(ASSETS_DIR / "main_bg.png")
-set_sidebar_bg(ASSETS_DIR / "sidebar_bg.png")
-# Optional Google Trends
-try:
-    from pytrends.request import TrendReq
-    HAS_TRENDS = True
-except ImportError:
-    HAS_TRENDS = False
-
 # ------------------------------
 # Page config + styling
 # ------------------------------
