@@ -22,34 +22,39 @@ st.set_page_config(
     page_icon="🌺",
     layout="wide",
 )
+
 def set_background(image_path: str):
     import base64
     from pathlib import Path
+    import streamlit as st
 
-    image_file = Path(image_path)
-    if not image_file.exists():
-        st.warning(f"Background image not found: {image_path}")
+    img = Path(image_path)
+    if not img.exists():
+        st.error(f"❌ Background image not found: {image_path}")
         return
 
-    with open(image_file, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode()
+    encoded = base64.b64encode(img.read_bytes()).decode()
 
     st.markdown(
         f"""
         <style>
-        .stApp {{
+        html, body {{
+            height: 100%;
+            margin: 0;
+        }}
+
+        [data-testid="stAppViewContainer"] {{
             background-image: url("data:image/png;base64,{encoded}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            background-attachment: fixed;
         }}
         </style>
         """,
         unsafe_allow_html=True,
     )
     
-    set_background("assets/main_bg.png")
+set_background("assets/main_bg.png")
     
 st.markdown(
     """
