@@ -4,7 +4,7 @@
 import streamlit as st
 
 # ===== CORE LOGIC =====
-from core.strategies import allocate_budget
+from core.strategies import generate_strategy_plan
 from core.scale_engine import evaluate_performance
 from core.common_ai import (
     generate_headlines,
