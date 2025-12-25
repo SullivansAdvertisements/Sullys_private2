@@ -65,45 +65,45 @@ tab_strategy, tab_research, tab_campaigns, tab_influencer, tab_scale = st.tabs([
 # TAB 1 — STRATEGY
 # =========================
 with tab_strategy:
-st.subheader("🧠 Strategy Engine")
+    st.subheader("🧠 Strategy Engine")
 
-monthly_budget = st.number_input(
-    "Monthly Budget ($)",
-    min_value=500,
-    value=5000,
-    step=500,
-)
-
-goal = st.selectbox(
-    "Primary Goal",
-    ["Awareness", "Traffic", "Leads", "Sales"],
-)
-
-if st.button("Generate Strategy"):
-    strategy = generate_strategy_plan(
-        budget=monthly_budget,
-        goal=goal,
+    monthly_budget = st.number_input(
+        "Monthly Budget ($)",
+        min_value=500,
+        value=5000,
+        step=500,
     )
 
-    if "error" in strategy:
-        st.error(strategy["error"])
-    else:
-        st.success("Strategy Generated")
+    goal = st.selectbox(
+        "Primary Goal",
+        ["Awareness", "Traffic", "Leads", "Sales"],
+    )
 
-        if strategy["note"]:
-            st.info(strategy["note"])
+    if st.button("Generate Strategy"):
+        strategy = generate_strategy_plan(
+            budget=monthly_budget,
+            goal=goal,
+        )
 
-        st.markdown("### Platform Allocation")
-        st.json(strategy["allocations"])
+        if "error" in strategy:
+            st.error(strategy["error"])
+        else:
+            st.success("Strategy Generated")
 
-        if strategy["warnings"]:
-            st.markdown("### ⚠️ Warnings")
-            for w in strategy["warnings"]:
-                st.warning(w)
+            if strategy["note"]:
+                st.info(strategy["note"])
 
-        st.markdown("### 📈 Optimization Recommendations")
-        for r in strategy["recommendations"]:
-            st.write(f"• {r}")
+            st.markdown("### Platform Allocation")
+            st.json(strategy["allocations"])
+
+            if strategy["warnings"]:
+                st.markdown("### ⚠️ Warnings")
+                for w in strategy["warnings"]:
+                    st.warning(w)
+
+            st.markdown("### 📈 Optimization Recommendations")
+            for r in strategy["recommendations"]:
+                st.write(f"• {r}")
 # =========================
 # TAB 2 — RESEARCH
 # =========================
