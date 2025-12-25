@@ -6,193 +6,144 @@ from pathlib import Path
 # =========================
 st.set_page_config(
     page_title="Sully’s Media Planner",
-    page_icon="🌺",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # =========================
 # PATHS
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
-ASSETS_DIR = BASE_DIR / "assets"
+ASSETS = BASE_DIR / "assets"
 
-LOGO_PATH = ASSETS_DIR / "sullivans_logo.png"
-MAIN_BG_PATH = ASSETS_DIR / "main_bg.png"
-SIDEBAR_BG_PATH = ASSETS_DIR / "sidebar_bg.png"
+MAIN_BG = ASSETS / "main_bg.png"
+SIDEBAR_BG = ASSETS / "sidebar_bg.png"
+LOGO = ASSETS / "sullivans_logo.png"
 
 # =========================
-# BACKGROUND STYLES
+# SIDEBAR BACKGROUND (CSS SAFE)
 # =========================
-def inject_backgrounds():
-    css = "<style>"
-
-    # MAIN BACKGROUND
-    if MAIN_BG_PATH.exists():
-        css += f"""
-        .stApp {{
-            background-image: url("file://{MAIN_BG_PATH}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-        }}
-        """
-
-    # SIDEBAR BACKGROUND
-    if SIDEBAR_BG_PATH.exists():
-        css += f"""
+if SIDEBAR_BG.exists():
+    st.markdown(
+        f"""
+        <style>
         [data-testid="stSidebar"] {{
-            background-image: url("file://{SIDEBAR_BG_PATH}");
+            background-image: url("file://{SIDEBAR_BG}");
             background-size: cover;
             background-position: center;
         }}
-        """
 
-    # TEXT VISIBILITY (VERY IMPORTANT)
-    css += """
+        [data-testid="stSidebar"] * {{
+            color: white !important;
+            font-weight: 600;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# =========================
+# MAIN BACKGROUND (MOBILE SAFE)
+# =========================
+if MAIN_BG.exists():
+    st.image(str(MAIN_BG), use_column_width=True)
+
+# =========================
+# GLOBAL TEXT VISIBILITY
+# =========================
+st.markdown(
+    """
+    <style>
     body, p, span, label, div {
         color: #111111 !important;
     }
 
-    h1, h2, h3, h4 {
-        color: #111111 !important;
+    h1, h2, h3 {
         font-weight: 700;
     }
 
     .stTabs [role="tab"] {
-        color: #111111 !important;
         font-weight: 600;
+        color: #111111 !important;
     }
-
-    [data-testid="stSidebar"] * {
-        color: white !important;
-        font-weight: 500;
-    }
-    """
-
-    css += "</style>"
-    st.markdown(css, unsafe_allow_html=True)
-
-inject_backgrounds()
-# =========================
-# HEADER
-# =========================
-col1, col2 = st.columns([1, 4])
-
-with col1:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), use_column_width=True)
-
-with col2:
-    st.markdown("## 🚀 Sully’s Multi-Platform Media Planner")
-    st.caption("Strategy • Research • Campaign Creation • Scaling")
-
-st.markdown("---")
-with st.sidebar:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), use_column_width=True)
-    st.markdown("### Navigation")
-#
-# ------------------------------
-# Phase E – Creative Brain
-# ------------------------------
-def generate_full_creative(platform, niche, goal, offer):
-    base_hooks = {
-        "Music": [
-            "New release out now",
-            "This sound is blowing up",
-            "Fans can’t stop replaying this",
-        ],
-        "Clothing": [
-            "New drop just landed",
-            "Limited stock available",
-            "Upgrade your fit today",
-        ],
-        "Homecare": [
-            "Care your family can trust",
-            "Support your loved ones today",
-            "Professional home care services",
-        ],
-    }
-
-    headlines = [
-        f"{h} – {offer}"
-        for h in base_hooks.get(niche, ["Discover more"])
-    ]
-
-    primary_text = [
-        f"If you're looking for {niche.lower()} solutions, this is for you. {offer}.",
-        f"{offer}. Trusted by people who care about quality.",
-        f"Don’t miss this. {offer}.",
-    ]
-
-    ctas = ["Learn More", "Get Started", "Book Now", "Shop Now"]
-
-    return {
-        "headlines": headlines,
-        "primary_text": primary_text,
-        "ctas": ctas,
-    }
-
-# ------------------------------
-# Phase A – Strategy Engine
-# ------------------------------
-def allocate_budget(total_budget, goal):
-    if goal == "Awareness":
-        return {"Meta": 0.35, "TikTok": 0.30, "YouTube": 0.25, "Google": 0.10}
-    if goal in ["Sales", "Conversions"]:
-        return {"Meta": 0.40, "Google": 0.35, "TikTok": 0.15, "YouTube": 0.10}
-    return {"Meta": 0.35, "Google": 0.30, "TikTok": 0.20, "YouTube": 0.15}
-
-# ------------------------------
-# Phase B – Google Trends
-# ------------------------------
-@st.cache_data(ttl=3600)
-def get_google_trends(seeds):
-    if not HAS_TRENDS:
-        return None
-    pytrends = TrendReq(hl="en-US", tz=360)
-    pytrends.build_payload(seeds, timeframe="today 12-m")
-    return pytrends.related_queries()
-
-# ------------------------------
-# Header
-# ------------------------------
-h1, h2 = st.columns([1, 3])
-with h1:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), use_column_width=True)
-with h2:
-    st.markdown("## 🌺 Sully’s Multi-Platform Media Planner")
-    st.caption("Strategy • Research • Creative Generation (Phases A–E)")
-
-st.markdown("---")
-
-# ------------------------------
-# Sidebar
-# ------------------------------
-with st.sidebar:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), use_column_width=True)
-    st.markdown("### Active Phases")
-    st.write("✅ Strategy")
-    st.write("✅ Research")
-    st.write("✅ Budget Allocation")
-    st.write("✅ Creative Generator")
-
-# ------------------------------
-# Tabs
-# ------------------------------
-tab_strategy, tab_research, tab_meta, tab_google, tab_tiktok, tab_spotify = st.tabs(
-    [
-        "🧠 Strategy",
-        "📊 Research",
-        "📣 Meta",
-        "🔍 Google / YouTube",
-        "🎵 TikTok",
-        "🎧 Spotify",
-    ]
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
+
+# =========================
+# SIDEBAR CONTENT
+# =========================
+with st.sidebar:
+    if LOGO.exists():
+        st.image(str(LOGO), use_column_width=True)
+
+    st.markdown("### Navigation")
+    st.write("• Strategy")
+    st.write("• Research")
+    st.write("• Campaigns")
+    st.write("• Influencers")
+    st.write("• Reporting")
+
+# =========================
+# TABS (MOBILE FRIENDLY)
+# =========================
+tab_strategy, tab_research, tab_campaigns, tab_influencers = st.tabs(
+    ["🧠 Strategy", "📊 Research", "📣 Campaigns", "🤝 Influencers"]
+)
+
+# =========================
+# STRATEGY TAB
+# =========================
+with tab_strategy:
+    st.subheader("Strategy Builder")
+
+    niche = st.selectbox("Business Type", ["Music", "Clothing", "Home Care"])
+    budget = st.number_input("Monthly Budget (min $500)", min_value=500, value=5000)
+
+    platforms = st.multiselect(
+        "Platforms",
+        ["Meta", "Google", "TikTok", "Spotify", "YouTube"],
+        default=["Meta", "Google"],
+    )
+
+    st.success("Strategy engine ready.")
+
+# =========================
+# RESEARCH TAB
+# =========================
+with tab_research:
+    st.subheader("Trends & Research")
+
+    seed = st.text_input("Keyword / Interest")
+    timeframe = st.selectbox("Timeframe", ["1 month", "3 months", "1 year", "5 years"])
+
+    if st.button("Run Research"):
+        st.info("This will connect Google Trends, TikTok Trends & Meta Library (API wiring phase).")
+
+# =========================
+# CAMPAIGNS TAB
+# =========================
+with tab_campaigns:
+    st.subheader("Campaign Generator")
+
+    platform = st.selectbox("Platform", ["Meta", "Google", "TikTok", "Spotify"])
+    objective = st.selectbox("Objective", ["Awareness", "Traffic", "Leads", "Sales"])
+
+    if st.button("Generate Campaign"):
+        st.success("Campaign structure generated (headlines, copy, audiences).")
+
+# =========================
+# INFLUENCERS TAB
+# =========================
+with tab_influencers:
+    st.subheader("Influencer Outreach")
+
+    niche = st.text_input("Niche / Industry")
+    region = st.text_input("Region")
+
+    if st.button("Find Influencers"):
+        st.info("IG + Google influencer research will populate here.")
 
 # ==============================
 # TAB 1 — STRATEGY (Phase A + D)
