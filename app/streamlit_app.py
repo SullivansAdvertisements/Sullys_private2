@@ -1,218 +1,260 @@
-import streamlit as st
-from pathlib import Path
+# ================================
+# Sully’s Multi-Platform Media Bot
+# PHASE 1 – UI FOUNDATION (STABLE)
+# ================================
 
-# =========================
+from pathlib import Path
+import base64
+import streamlit as st
+
+# -------------------------------
 # PAGE CONFIG (MUST BE FIRST)
-# =========================
+# -------------------------------
 st.set_page_config(
     page_title="Sully’s Media Planner",
+    page_icon="🌺",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# =========================
+# -------------------------------
 # PATHS
-# =========================
-BASE_DIR = Path(__file__).resolve().parent
-ASSETS = BASE_DIR / "assets"
+# -------------------------------
+APP_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = APP_DIR / "assets"
 
-MAIN_BG = ASSETS / "main_bg.png"
-SIDEBAR_BG = ASSETS / "sidebar_bg.png"
-LOGO = ASSETS / "sullivans_logo.png"
+LOGO_PATH = ASSETS_DIR / "sullivans_logo.png"
+MAIN_BG = ASSETS_DIR / "main_bg.png"
+SIDEBAR_BG = ASSETS_DIR / "sidebar_bg.png"
 
-# =========================
-# SIDEBAR BACKGROUND (CSS SAFE)
-# =========================
-if SIDEBAR_BG.exists():
+
+# -------------------------------
+# BACKGROUND HELPERS
+# -------------------------------
+def set_main_background(image_path: Path):
+    if not image_path.exists():
+        st.warning(f"Background image not found: {image_path}")
+        return
+
+    encoded = base64.b64encode(image_path.read_bytes()).decode()
     st.markdown(
         f"""
         <style>
-        [data-testid="stSidebar"] {{
-            background-image: url("file://{SIDEBAR_BG}");
+        .stApp {{
+            background-image: url("data:image/png;base64,{encoded}");
             background-size: cover;
+            background-attachment: fixed;
             background-position: center;
-        }}
-
-        [data-testid="stSidebar"] * {{
-            color: white !important;
-            font-weight: 600;
         }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-# =========================
-# MAIN BACKGROUND (MOBILE SAFE)
-# =========================
-if MAIN_BG.exists():
-    st.image(str(MAIN_BG), use_column_width=True)
 
-# =========================
-# GLOBAL TEXT VISIBILITY
-# =========================
+def set_sidebar_background(image_path: Path):
+    if not image_path.exists():
+        return
+
+    encoded = base64.b64encode(image_path.read_bytes()).decode()
+    st.markdown(
+        f"""
+        <style>
+        [data-testid="stSidebar"] {{
+            background-image: url("data:image/png;base64,{encoded}");
+            background-size: cover;
+            background-position: center;
+        }}
+        [data-testid="stSidebar"] * {{
+            color: white !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# APPLY BACKGROUNDS
+set_main_background(MAIN_BG)
+set_sidebar_background(SIDEBAR_BG)
+
+# -------------------------------
+# GLOBAL STYLES (READABLE TEXT)
+# -------------------------------
 st.markdown(
     """
     <style>
-    body, p, span, label, div {
-        color: #111111 !important;
+    body, p, span, div, label {
+        color: #111 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-
-    h1, h2, h3 {
+    h1, h2, h3, h4 {
+        color: #000 !important;
         font-weight: 700;
     }
-
-    .stTabs [role="tab"] {
+    .stTabs [role="tab"] p {
+        color: #000 !important;
         font-weight: 600;
-        color: #111111 !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# =========================
-# SIDEBAR CONTENT
-# =========================
+# -------------------------------
+# SIDEBAR
+# -------------------------------
 with st.sidebar:
-    if LOGO.exists():
-        st.image(str(LOGO), use_column_width=True)
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), use_column_width=True)
 
-    st.markdown("### Navigation")
-    st.write("• Strategy")
-    st.write("• Research")
-    st.write("• Campaigns")
-    st.write("• Influencers")
-    st.write("• Reporting")
+    st.markdown("### Platform Modules")
+    st.write("• Strategy Engine")
+    st.write("• Research & Trends")
+    st.write("• Google / YouTube")
+    st.write("• TikTok")
+    st.write("• Spotify")
+    st.write("• Meta")
+    st.write("• Influencers & Email")
 
-# =========================
-# TABS (MOBILE FRIENDLY)
-# =========================
-tab_strategy, tab_research, tab_campaigns, tab_influencers = st.tabs(
-    ["🧠 Strategy", "📊 Research", "📣 Campaigns", "🤝 Influencers"]
+# -------------------------------
+# HEADER
+# -------------------------------
+st.markdown("## Sully’s Multi-Platform Media Planner")
+st.caption(
+    "Strategy • Research • Campaign Creation • Influencers • Execution"
 )
 
-# =========================
+st.markdown("---")
+
+# -------------------------------
+# TABS
+# -------------------------------
+tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta, tab_influencer = st.tabs(
+    [
+        "🧠 Strategy",
+        "📊 Research & Trends",
+        "🔍 Google / YouTube",
+        "🎵 TikTok",
+        "🎧 Spotify",
+        "📣 Meta",
+        "🤝 Influencers & Email",
+    ]
+)
+
+# ===============================
 # STRATEGY TAB
-# =========================
+# ===============================
 with tab_strategy:
-    st.subheader("Strategy Builder")
+    st.subheader("🧠 Strategy Engine")
 
-    niche = st.selectbox("Business Type", ["Music", "Clothing", "Home Care"])
-    budget = st.number_input("Monthly Budget (min $500)", min_value=500, value=5000)
-
-    platforms = st.multiselect(
-        "Platforms",
-        ["Meta", "Google", "TikTok", "Spotify", "YouTube"],
-        default=["Meta", "Google"],
+    niche = st.selectbox(
+        "Business Niche",
+        ["Music", "Clothing Brand", "Local Home Care"],
     )
 
-    st.success("Strategy engine ready.")
+    goal = st.selectbox(
+        "Primary Goal",
+        ["Awareness", "Traffic", "Leads", "Sales"],
+    )
 
-# =========================
+    budget = st.number_input(
+        "Monthly Ad Budget (USD)",
+        min_value=5000,
+        step=500,
+        value=5000,
+    )
+
+    platforms = st.multiselect(
+        "Platforms to Include",
+        ["Meta", "Google", "TikTok", "YouTube", "Spotify"],
+        default=["Meta", "Google", "TikTok"],
+    )
+
+    if st.button("Generate Strategy (Phase 2 Logic)"):
+        st.success("Strategy engine will run here in Phase 2.")
+        st.json(
+            {
+                "niche": niche,
+                "goal": goal,
+                "budget": budget,
+                "platforms": platforms,
+            }
+        )
+
+# ===============================
 # RESEARCH TAB
-# =========================
-with tab_research:
-    st.subheader("Trends & Research")
-
-    seed = st.text_input("Keyword / Interest")
-    timeframe = st.selectbox("Timeframe", ["1 month", "3 months", "1 year", "5 years"])
-
-    if st.button("Run Research"):
-        st.info("This will connect Google Trends, TikTok Trends & Meta Library (API wiring phase).")
-
-# =========================
-# CAMPAIGNS TAB
-# =========================
-with tab_campaigns:
-    st.subheader("Campaign Generator")
-
-    platform = st.selectbox("Platform", ["Meta", "Google", "TikTok", "Spotify"])
-    objective = st.selectbox("Objective", ["Awareness", "Traffic", "Leads", "Sales"])
-
-    if st.button("Generate Campaign"):
-        st.success("Campaign structure generated (headlines, copy, audiences).")
-
-# =========================
-# INFLUENCERS TAB
-# =========================
-with tab_influencers:
-    st.subheader("Influencer Outreach")
-
-    niche = st.text_input("Niche / Industry")
-    region = st.text_input("Region")
-
-    if st.button("Find Influencers"):
-        st.info("IG + Google influencer research will populate here.")
-
-# ==============================
-# TAB 1 — STRATEGY (Phase A + D)
-# ==============================
-with tab_strategy:
-    st.subheader("🧠 Strategy Planner")
-
-    c1, c2, c3 = st.columns(3)
-    niche = c1.selectbox("Niche", ["Music", "Clothing", "Homecare"])
-    goal = c2.selectbox("Goal", ["Awareness", "Traffic", "Leads", "Conversions", "Sales"])
-    budget = c3.number_input("Monthly Budget ($)", min_value=500, value=5000, step=500)
-
-    st.markdown("### Budget Allocation")
-    splits = allocate_budget(budget, goal)
-    for k, v in splits.items():
-        st.write(f"- **{k}**: ${budget * v:,.0f}")
-
-# ==============================
-# TAB 2 — RESEARCH (Phase B)
-# ==============================
+# ===============================
 with tab_research:
     st.subheader("📊 Research & Trends")
 
-    seeds_raw = st.text_input(
-        "Keyword / Interest Seeds",
-        placeholder="streetwear, home care services, independent artist",
+    seed = st.text_input("Keyword / Interest Seed", "streetwear brand")
+
+    timeframe = st.selectbox(
+        "Timeframe",
+        ["1 Month", "3 Months", "12 Months", "5 Years"],
     )
-    seeds = parse_multiline(seeds_raw)
 
-    if st.button("Run Google Trends") and seeds:
-        if not HAS_TRENDS:
-            st.warning("pytrends not installed.")
-        else:
-            data = get_google_trends(seeds)
-            st.success("Trend data loaded.")
-            st.json(data)
+    st.info(
+        "This tab will pull:\n"
+        "- Google Trends\n"
+        "- YouTube Trends\n"
+        "- TikTok Creative Center\n"
+        "- Meta Ad Library\n"
+        "- Location & demographic insights"
+    )
 
-# ==============================
-# PHASE E — CREATIVE GENERATOR
-# ==============================
-def creative_ui(platform):
-    st.markdown("### 🧠 Ad Creative Generator")
-    offer = st.text_input("Offer / Hook", f"Limited time offer on {platform}")
-    if st.button(f"Generate {platform} Ad Copy"):
-        creatives = generate_full_creative(platform, niche, goal, offer)
-        st.subheader("Headlines")
-        for h in creatives["headlines"]:
-            st.write(f"- {h}")
-        st.subheader("Primary Text")
-        for t in creatives["primary_text"]:
-            st.write(f"- {t}")
-        st.subheader("CTAs")
-        st.write(", ".join(creatives["ctas"]))
+    if st.button("Run Research (Phase 3 APIs)"):
+        st.warning("Research clients plug in during Phase 3.")
 
-# ==============================
-# PLATFORM TABS (Phase C + E)
-# ==============================
-with tab_meta:
-    st.subheader("📣 Meta (Facebook / Instagram)")
-    creative_ui("Meta")
-
+# ===============================
+# GOOGLE / YOUTUBE TAB
+# ===============================
 with tab_google:
-    st.subheader("🔍 Google / YouTube")
-    creative_ui("Google")
+    st.subheader("🔍 Google & YouTube Campaign Builder")
+    st.info("Google Ads & YouTube campaign creation will be wired next.")
+    st.text_area("Generated Headlines")
+    st.text_area("Generated Keywords")
+    st.text_area("Audience Targeting")
 
+# ===============================
+# TIKTOK TAB
+# ===============================
 with tab_tiktok:
-    st.subheader("🎵 TikTok")
-    creative_ui("TikTok")
+    st.subheader("🎵 TikTok Campaign Builder")
+    st.info("TikTok Creative Center & Ads API will be wired next.")
+    st.text_area("Hooks")
+    st.text_area("Trending Hashtags")
 
+# ===============================
+# SPOTIFY TAB
+# ===============================
 with tab_spotify:
-    st.subheader("🎧 Spotify")
-    creative_ui("Spotify")
+    st.subheader("🎧 Spotify Campaign Planner")
+    st.info("Spotify Ads are planning-only (no public campaign API).")
+    st.text_area("30s Audio Script")
+    st.text_input("Destination URL")
+
+# ===============================
+# META TAB
+# ===============================
+with tab_meta:
+    st.subheader("📣 Meta (Facebook & Instagram)")
+    st.info(
+        "Meta campaign → ad set → ad automation\n"
+        "Reach estimates + pixel-based conversion setup\n"
+        "will be enabled in Phase 4."
+    )
+    st.text_area("Primary Text")
+    st.text_input("Headline")
+    st.text_input("CTA")
+
+# ===============================
+# INFLUENCER TAB
+# ===============================
+with tab_influencer:
+    st.subheader("🤝 Influencer & Email Outreach")
+
+    st.text_input("Influencer Niche / Keyword")
+    st.text_area("Generated Outreach Email")
+    st.info("IG + Google influencer scraping plugs in Phase 5.")
