@@ -25,3 +25,22 @@ def search_meta_ads(keyword: str):
         ],
         "note": "Inspired by public Meta Ad Library patterns",
     }
+import pandas as pd
+
+def search_meta_ads(keyword: str, country: str = "US"):
+    data = [
+        {
+            "advertiser": "Brand Alpha",
+            "headline": f"{keyword} that converts",
+            "cta": "Shop Now",
+            "platform": "Instagram"
+        },
+        {
+            "advertiser": "Brand Beta",
+            "headline": f"Why everyone loves {keyword}",
+            "cta": "Learn More",
+            "platform": "Facebook"
+        }
+    ]
+
+    return pd.DataFrame(data)
