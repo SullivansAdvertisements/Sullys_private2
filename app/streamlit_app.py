@@ -1,19 +1,19 @@
-# =========================
-# Sully's Media Planner
-# =========================
-
-# -------- IMPORTS (NO st.* calls here) --------
 import streamlit as st
 from pathlib import Path
 
-# -------- MUST BE FIRST STREAMLIT COMMAND --------
+# =========================
+# PAGE CONFIG (MUST BE FIRST)
+# =========================
 st.set_page_config(
     page_title="Sully’s Media Planner",
+    page_icon="🌺",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# -------- PATHS --------
+# =========================
+# PATHS
+# =========================
 BASE_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = BASE_DIR / "assets"
 
@@ -21,104 +21,78 @@ LOGO_PATH = ASSETS_DIR / "sullivans_logo.png"
 MAIN_BG_PATH = ASSETS_DIR / "main_bg.png"
 SIDEBAR_BG_PATH = ASSETS_DIR / "sidebar_bg.png"
 
+# =========================
+# BACKGROUND STYLES
+# =========================
+def inject_backgrounds():
+    css = "<style>"
 
-# -------- BACKGROUND HELPERS --------
-def set_background(image_path: Path):
-    if not image_path.exists():
-        st.warning(f"⚠️ Background image not found: {image_path.name}")
-        return
-
-    st.markdown(
-        f"""
-        <style>
+    # MAIN BACKGROUND
+    if MAIN_BG_PATH.exists():
+        css += f"""
         .stApp {{
-            background-image: url("file://{image_path}");
+            background-image: url("file://{MAIN_BG_PATH}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
         }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+        """
 
-
-def set_sidebar_background(image_path: Path):
-    if not image_path.exists():
-        st.warning(f"⚠️ Sidebar background not found: {image_path.name}")
-        return
-
-    st.markdown(
-        f"""
-        <style>
+    # SIDEBAR BACKGROUND
+    if SIDEBAR_BG_PATH.exists():
+        css += f"""
         [data-testid="stSidebar"] {{
-            background-image: url("file://{image_path}");
+            background-image: url("file://{SIDEBAR_BG_PATH}");
             background-size: cover;
             background-position: center;
         }}
+        """
 
-        /* Make sidebar text readable */
-        [data-testid="stSidebar"] * {{
-            color: white !important;
-            font-weight: 500;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-# -------- APPLY BACKGROUNDS --------
-set_background(MAIN_BG_PATH)
-set_sidebar_background(SIDEBAR_BG_PATH)
-
-
-# -------- GLOBAL TEXT VISIBILITY FIX --------
-st.markdown(
-    """
-    <style>
+    # TEXT VISIBILITY (VERY IMPORTANT)
+    css += """
     body, p, span, label, div {
-        color: #111 !important;
+        color: #111111 !important;
     }
 
     h1, h2, h3, h4 {
-        color: #111 !important;
+        color: #111111 !important;
         font-weight: 700;
     }
 
     .stTabs [role="tab"] {
-        color: #111 !important;
+        color: #111111 !important;
         font-weight: 600;
     }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
+    [data-testid="stSidebar"] * {
+        color: white !important;
+        font-weight: 500;
+    }
+    """
 
+    css += "</style>"
+    st.markdown(css, unsafe_allow_html=True)
+
+inject_backgrounds()
 # =========================
 # HEADER
 # =========================
-header_left, header_right = st.columns([1, 4])
+col1, col2 = st.columns([1, 4])
 
-with header_left:
+with col1:
     if LOGO_PATH.exists():
         st.image(str(LOGO_PATH), use_column_width=True)
 
-with header_right:
+with col2:
     st.markdown("## 🚀 Sully’s Multi-Platform Media Planner")
     st.caption("Strategy • Research • Campaign Creation • Scaling")
 
-
 st.markdown("---")
-
-# =========================
-# SIDEBAR LOGO
-# =========================
 with st.sidebar:
     if LOGO_PATH.exists():
         st.image(str(LOGO_PATH), use_column_width=True)
     st.markdown("### Navigation")
+#
 # ------------------------------
 # Phase E – Creative Brain
 # ------------------------------
