@@ -1,3 +1,12 @@
+import os
+import streamlit as st
+
+st.write("Current working directory:", os.getcwd())
+st.write("Files in root:", os.listdir("."))
+if os.path.exists("assets"):
+    st.write("Assets folder:", os.listdir("assets"))
+else:
+    st.error("❌ assets/ folder not found")
 # ==============================
 # Sully’s Multi-Platform Media Planner
 # Phases A → E (STABLE)
