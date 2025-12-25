@@ -101,3 +101,29 @@ def recommend_scaling(
         updated_budget[platform] = round(updated_budget[platform], 2)
 
     return updated_budget
+    def allocate_budget(budget: float, goal: str) -> dict:
+    goal = goal.lower()
+
+    if goal in ["sales", "conversions"]:
+        split = {
+            "Meta": 0.40,
+            "Google": 0.30,
+            "TikTok": 0.20,
+            "Spotify": 0.10,
+        }
+    elif goal == "awareness":
+        split = {
+            "Meta": 0.30,
+            "TikTok": 0.30,
+            "YouTube": 0.25,
+            "Spotify": 0.15,
+        }
+    else:
+        split = {
+            "Meta": 0.35,
+            "Google": 0.35,
+            "TikTok": 0.20,
+            "Spotify": 0.10,
+        }
+
+    return {k: round(budget * v, 2) for k, v in split.items()}
