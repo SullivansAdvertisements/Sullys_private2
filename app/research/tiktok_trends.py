@@ -25,3 +25,22 @@ def get_tiktok_trends(seed: str):
         ],
         "note": "Based on TikTok Creative Center patterns",
     }
+    import pandas as pd
+
+def get_tiktok_trends(keyword: str):
+    data = [
+        {
+            "hashtag": f"#{keyword}",
+            "views": "45M",
+            "growth_7d": "+18%",
+            "content_type": "UGC"
+        },
+        {
+            "hashtag": f"#{keyword}challenge",
+            "views": "12M",
+            "growth_7d": "+32%",
+            "content_type": "Challenge"
+        }
+    ]
+
+    return pd.DataFrame(data)
