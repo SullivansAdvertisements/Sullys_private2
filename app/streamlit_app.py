@@ -142,20 +142,27 @@ if st.button("Generate Strategy Plan"):
 # RESEARCH TAB (USES research/ FOLDER)
 # ============================================================
 with tab_research:
-    st.subheader("📊 Cross-Platform Research & Trends")
+    with tabs[1]:  # Research & Trends tab
+    st.header("📊 Research & Trends Engine")
 
-    keyword = st.text_input(
-        "Seed Keyword / Interest",
-        placeholder="streetwear, home care, music marketing…",
-        key="research_keyword"
-    )
+    keyword = st.text_input("Enter keyword or niche", value="music artist")
 
     timeframe = st.selectbox(
         "Time Range",
-        ["7 days", "30 days", "90 days", "12 months", "5 years"],
-        key="research_timeframe"
+        [
+            "now 7-d",
+            "today 1-m",
+            "today 3-m",
+            "today 12-m",
+            "today 5-y"
+        ]
     )
 
+    geo = st.selectbox(
+        "Geography",
+        ["US", "Worldwide"]
+    )
+    
     st.markdown("#### Platforms")
     st.checkbox("Google Trends", value=True)
     st.checkbox("YouTube Trends", value=True)
