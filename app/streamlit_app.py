@@ -1,197 +1,217 @@
-# streamlit_app.py
-# Sully’s Multi-Platform Growth Engine (Client-Ready)
+# ============================================================
+# Sully’s Advertisements – Multi-Platform Strategy Console
+# UI ONLY – uses existing clients/, core/, research/, influencer/
+# ============================================================
 
 import streamlit as st
+from pathlib import Path
 
-# ===== CORE LOGIC =====
-from core.strategies import generate_strategy_plan
-from core.scale_engine import evaluate_performance
-from core.common_ai import (
-    generate_headlines,
-    generate_primary_text,
-    generate_ctas,
-)
-
-# ===== RESEARCH =====
-from research.trends_client import get_google_trends
-from research.tiktok_trends import get_tiktok_trends
-from research.meta_library import search_meta_ads
-
-# ===== INFLUENCER + EMAIL =====
-from influencer.influencer import find_influencers
-from email_marketing.outreach import generate_outreach_email
-
-# =========================
-# PAGE CONFIG (MUST BE FIRST)
-# =========================
+# ---------- MUST BE FIRST ----------
 st.set_page_config(
-    page_title="Sully Growth Engine",
+    page_title="Sullivan’s Advertisements",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# =========================
-# BASIC LIGHT THEME
-# =========================
-st.markdown(
-    """
-    <style>
-    body, p, div, label {
-        color: #111 !important;
-        font-family: system-ui;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# ---------- PATHS ----------
+APP_DIR = Path(__file__).parent
+ASSETS = APP_DIR / "assets"
+MAIN_BG = ASSETS / "main_bg.png"
+SIDEBAR_BG = ASSETS / "sidebar_bg.png"
+LOGO = ASSETS / "sullivans_logo.png"
+
+# ---------- BACKGROUND + SIDEBAR ----------
+def inject_css():
+    main_bg = MAIN_BG.as_posix()
+    sidebar_bg = SIDEBAR_BG.as_posix()
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background: url("{main_bg}") no-repeat center center fixed;
+            background-size: cover;
+        }}
+
+        section[data-testid="stSidebar"] {{
+            background: url("{sidebar_bg}") no-repeat center center fixed;
+            background-size: cover;
+        }}
+
+        h1, h2, h3, h4, h5, h6,
+        p, label, span, div {{
+            color: #111 !important;
+        }}
+
+        div[data-testid="stSelectbox"] > div {{
+            background-color: white !important;
+        }}
+
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stTextArea"] textarea {{
+            background-color: white !important;
+            color: black !important;
+        }}
+
+        .block-container {{
+            padding-top: 2rem;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+inject_css()
+
+# ---------- SIDEBAR ----------
+with st.sidebar:
+    if LOGO.exists():
+        st.image(str(LOGO), use_column_width=True)
+
+    st.markdown("### Navigation")
+    st.caption("Sullivan’s Advertisements AI Console")
+
+# ---------- HEADER ----------
+st.markdown("## 📈 Sullivan’s Multi-Platform Growth Engine")
+st.caption("Strategy • Research • Campaign Planning • Influencer Outreach")
+
+# ---------- TABS ----------
+tab_strategy, tab_research, tab_google, tab_tiktok, tab_spotify, tab_meta, tab_influencer, tab_email = st.tabs(
+    [
+        "🧠 Strategy",
+        "📊 Research & Trends",
+        "🔍 Google / YouTube",
+        "🎵 TikTok",
+        "🎧 Spotify",
+        "📣 Meta",
+        "🤝 Influencers",
+        "✉️ Email Marketing",
+    ]
 )
 
-# =========================
-# HEADER
-# =========================
-st.title("🚀 Sully Multi-Platform Growth Engine")
-st.caption("Strategy → Research → Campaigns → Influencers → Scaling")
-
-# =========================
-# TABS
-# =========================
-tab_strategy, tab_research, tab_campaigns, tab_influencer, tab_scale = st.tabs([
-    "🧠 Strategy",
-    "📊 Research",
-    "📣 Campaign Builder",
-    "🤝 Influencers & Email",
-    "📈 Scaling & Optimization",
-])
-
-# =========================
-# TAB 1 — STRATEGY
-# =========================
+# ============================================================
+# STRATEGY TAB
+# ============================================================
 with tab_strategy:
-    st.subheader("🧠 Strategy Engine")
+    st.subheader("🧠 Campaign Strategy Builder")
 
-    monthly_budget = st.number_input(
-        "Monthly Budget ($)",
-        min_value=500,
-        value=5000,
-        step=500,
+    niche = st.selectbox(
+        "Business Type",
+        ["Music", "Clothing Brand", "Home Services", "E-commerce", "Local Business"],
+        key="strategy_niche"
     )
 
     goal = st.selectbox(
         "Primary Goal",
-        ["Awareness", "Traffic", "Leads", "Sales"],
+        ["Awareness", "Traffic", "Leads", "Conversions", "Sales"],
+        key="strategy_goal"
     )
 
-    if st.button("Generate Strategy"):
-        strategy = generate_strategy_plan(
-            budget=monthly_budget,
-            goal=goal,
-        )
+    budget = st.number_input(
+        "Monthly Budget (USD)",
+        min_value=500,
+        step=250,
+        value=5000,
+        key="strategy_budget"
+    )
 
-        if "error" in strategy:
-            st.error(strategy["error"])
-        else:
-            st.success("Strategy Generated")
+    platforms = st.multiselect(
+        "Platforms to include",
+        ["Meta", "Google / YouTube", "TikTok", "Spotify"],
+        default=["Meta", "Google / YouTube", "TikTok"],
+        key="strategy_platforms"
+    )
 
-            if strategy["note"]:
-                st.info(strategy["note"])
+    st.button("Generate Strategy Plan")
 
-            st.markdown("### Platform Allocation")
-            st.json(strategy["allocations"])
-
-            if strategy["warnings"]:
-                st.markdown("### ⚠️ Warnings")
-                for w in strategy["warnings"]:
-                    st.warning(w)
-
-            st.markdown("### 📈 Optimization Recommendations")
-            for r in strategy["recommendations"]:
-                st.write(f"• {r}")
-# =========================
-# TAB 2 — RESEARCH
-# =========================
+# ============================================================
+# RESEARCH TAB (USES research/ FOLDER)
+# ============================================================
 with tab_research:
-    st.subheader("Cross-Platform Research")
+    st.subheader("📊 Cross-Platform Research & Trends")
 
-    seed = st.text_input("Keyword / Interest Seed", "streetwear brand")
+    keyword = st.text_input(
+        "Seed Keyword / Interest",
+        placeholder="streetwear, home care, music marketing…",
+        key="research_keyword"
+    )
 
-    col1, col2, col3 = st.columns(3)
+    timeframe = st.selectbox(
+        "Time Range",
+        ["7 days", "30 days", "90 days", "12 months", "5 years"],
+        key="research_timeframe"
+    )
 
-    with col1:
-        if st.button("Google / YouTube Trends"):
-            st.json(get_google_trends(seed))
+    st.markdown("#### Platforms")
+    st.checkbox("Google Trends", value=True)
+    st.checkbox("YouTube Trends", value=True)
+    st.checkbox("TikTok Creative Center", value=True)
+    st.checkbox("Meta Ad Library", value=True)
 
-    with col2:
-        if st.button("TikTok Trends"):
-            st.json(get_tiktok_trends(seed))
+    st.button("Run Research")
 
-    with col3:
-        if st.button("Meta Ad Library"):
-            st.json(search_meta_ads(seed))
+    st.info(
+        "This tab reads from:\n"
+        "- research/google_trends.py\n"
+        "- research/youtube_trends.py\n"
+        "- research/tiktok_trends.py\n"
+        "- research/meta_library.py\n\n"
+        "No logic is duplicated here."
+    )
 
-# =========================
-# TAB 3 — CAMPAIGN BUILDER
-# =========================
-with tab_campaigns:
-    st.subheader("Ad Creative Generator")
+# ============================================================
+# GOOGLE / YOUTUBE
+# ============================================================
+with tab_google:
+    st.subheader("🔍 Google & YouTube Campaign Planner")
+    st.text_input("Landing Page URL", key="google_url")
+    st.text_area("Primary Keywords", key="google_keywords")
+    st.number_input("Daily Budget", min_value=5, value=50, key="google_budget")
+    st.button("Generate Google / YouTube Plan")
 
-    platform = st.selectbox("Platform", ["Meta", "Google", "TikTok", "YouTube"])
-    niche = st.selectbox("Niche", ["Music", "Clothing", "Homecare"], key="cb_niche")
-    goal = st.selectbox("Goal", ["Awareness", "Traffic", "Sales"], key="cb_goal")
+# ============================================================
+# TIKTOK
+# ============================================================
+with tab_tiktok:
+    st.subheader("🎵 TikTok Campaign Planner")
+    st.text_area("Creative Hooks", key="tiktok_hooks")
+    st.number_input("Daily Budget", min_value=5, value=30, key="tiktok_budget")
+    st.button("Generate TikTok Plan")
 
-    if st.button("Generate Creatives"):
-        headlines = generate_headlines(platform, niche, goal)
-        primary = generate_primary_text(platform, niche, goal)
-        ctas = generate_ctas(goal)
+# ============================================================
+# SPOTIFY
+# ============================================================
+with tab_spotify:
+    st.subheader("🎧 Spotify Audio Campaign")
+    st.text_area("30s Audio Script", key="spotify_script")
+    st.number_input("Daily Budget", min_value=5, value=25, key="spotify_budget")
+    st.button("Generate Spotify Plan")
 
-        st.markdown("### Headlines")
-        st.write(headlines)
+# ============================================================
+# META
+# ============================================================
+with tab_meta:
+    st.subheader("📣 Meta (Facebook & Instagram)")
+    st.text_area("Primary Text", key="meta_primary")
+    st.text_input("Headline", key="meta_headline")
+    st.text_input("CTA", key="meta_cta")
+    st.button("Generate Meta Ad Copy")
 
-        st.markdown("### Primary Text")
-        st.write(primary)
-
-        st.markdown("### CTAs")
-        st.write(ctas)
-
-# =========================
-# TAB 4 — INFLUENCERS + EMAIL
-# =========================
+# ============================================================
+# INFLUENCERS
+# ============================================================
 with tab_influencer:
-    st.subheader("Influencer Discovery & Outreach")
+    st.subheader("🤝 Influencer Discovery")
+    st.text_input("Niche / Keyword", key="influencer_keyword")
+    st.selectbox("Platform", ["Instagram", "YouTube", "TikTok"], key="influencer_platform")
+    st.button("Find Influencers")
 
-    niche = st.selectbox("Niche", ["Music", "Clothing", "Homecare"], key="inf_niche")
-    country = st.text_input("Country", "US")
-
-    if st.button("Find Influencers"):
-        influencers = find_influencers(niche, country)
-        st.json(influencers)
-
-    st.markdown("---")
-    st.markdown("### Email Outreach")
-
-    handle = st.text_input("Influencer Handle")
-    brand = st.text_input("Brand Name", "Sully")
-    offer = st.text_input("Offer", "Paid collaboration")
-
-    if st.button("Generate Outreach Email"):
-        email = generate_outreach_email(brand, niche, handle, offer)
-        st.markdown("**Subject:**")
-        st.write(email["subject"])
-        st.markdown("**Body:**")
-        st.write(email["body"])
-
-# =========================
-# TAB 5 — SCALING ENGINE
-# =========================
-with tab_scale:
-    st.subheader("Scaling & Optimization Engine")
-
-    st.caption("Simulated performance input (replace with real APIs later)")
-
-    metrics = {
-        "meta": {"roas": st.slider("Meta ROAS", 0.5, 4.0, 2.4)},
-        "google": {"roas": st.slider("Google ROAS", 0.5, 4.0, 1.9)},
-        "tiktok": {"roas": st.slider("TikTok ROAS", 0.5, 4.0, 3.1)},
-    }
-
-    if st.button("Evaluate & Optimize"):
-        actions = evaluate_performance(metrics)
-        st.success("Scaling Recommendations")
-        st.json(actions)
+# ============================================================
+# EMAIL MARKETING
+# ============================================================
+with tab_email:
+    st.subheader("✉️ Influencer Outreach Email")
+    st.text_input("Brand Name", key="email_brand")
+    st.text_input("Influencer Name", key="email_name")
+    st.text_area("Offer / Pitch", key="email_pitch")
+    st.button("Generate Outreach Email")
