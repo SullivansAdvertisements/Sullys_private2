@@ -122,7 +122,18 @@ with tab_strategy:
         key="strategy_platforms"
     )
 
-    st.button("Generate Strategy Plan")
+    if st.button("Generate Strategy Plan"):
+    from core.strategies import generate_strategy
+
+    strategy = generate_strategy(
+        niche=niche,
+        goal=goal,
+        budget=budget,
+        platforms=platforms
+    )
+
+    st.success("Strategy Generated")
+    st.json(strategy)
 
 # ============================================================
 # RESEARCH TAB (USES research/ FOLDER)
