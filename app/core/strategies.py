@@ -75,28 +75,29 @@ def strategy_warnings(goal: str, budget: float, platforms: list):
     return warnings
 
 
-def generate_strategy_plan(budget: float, goal: str):
-    valid, budget_msg = validate_budget(budget)
+def generate_strategy(niche, goal, budget, platforms):
+    """
+    Generates a high-level marketing strategy plan
+    """
 
-    if not valid:
-        return {"error": budget_msg}
+    allocation = {}
+    per_platform_budget = budget / max(len(platforms), 1)
 
-    platforms = allowed_platforms(goal, budget)
-    allocations = allocate_budget(budget, goal, platforms)
-    warnings = strategy_warnings(goal, budget, platforms)
-
-    recommendations = [
-        "Scale best-performing platform by +15% after 7 days",
-        "Pause creatives with CTR < 0.8%",
-        "Shift budget toward lowest CPA channel weekly",
-    ]
+    for platform in platforms:
+        allocation[platform] = {
+            "monthly_budget": round(per_platform_budget, 2),
+            "primary_goal": goal,
+            "recommended_objective": (
+                "Conversions" if goal.lower() in ["sales", "leads"] else "Awareness"
+            ),
+            "notes": f"Focus on {niche} audience with {goal} objective."
+        }
 
     return {
-        "budget": budget,
+        "niche": niche,
         "goal": goal,
+        "total_budget": budget,
         "platforms": platforms,
-        "allocations": allocations,
-        "warnings": warnings,
-        "recommendations": recommendations,
-        "note": budget_msg,
+        "allocation": allocation,
+        "scaling_rule": "Increase budget 20% after 7 days if CPA is below target"
     }
