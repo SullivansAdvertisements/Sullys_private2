@@ -1,12 +1,17 @@
-from research.google_trends import get_google_trends
-from research.youtube_trends import get_youtube_trends
-from research.tiktok_trends import get_tiktok_trends
-from research.meta_library import search_meta_ads
-
-def run_full_research(keyword: str, timeframe: str):
+def run_full_research(niche, goal):
     return {
-        "google": get_google_trends(keyword, timeframe),
-        "youtube": get_youtube_trends(keyword),
-        "tiktok": get_tiktok_trends(keyword),
-        "meta": search_meta_ads(keyword)
+        "niche": niche,
+        "goal": goal,
+        "keywords": get_google_keywords(niche),
+        "hashtags": get_tiktok_hashtags(niche),
+        "locations": get_top_locations(niche),
+        "audiences": get_meta_audiences(niche),
+        "age_range": "18-34",
+        "gender": "All",
+        "platform_signals": {
+            "google": {...},
+            "youtube": {...},
+            "tiktok": {...},
+            "meta": {...}
+        }
     }
