@@ -1,3 +1,8 @@
+st.set_page_config(
+    page_title="Sullivan’s Multi-Platform Growth Engine",
+    layout="centered",   # CRITICAL for mobile
+    initial_sidebar_state="collapsed"
+)
 # ============================================================
 # Sully’s Advertisements – Multi-Platform Strategy Console
 # UI ONLY – uses existing clients/, core/, research/, influencer/
@@ -181,7 +186,7 @@ with tab_research:
         st.subheader("🔍 Research Snapshot")
 
         st.write("### Google / YouTube Trends")
-        st.json(research_data["google_trends"])
+        st.json(research_data[""])
 
         st.write("### TikTok Creative Center")
         st.json(research_data["tiktok_trends"])
