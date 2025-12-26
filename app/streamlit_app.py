@@ -1,4 +1,4 @@
-=# ============================================================
+# ============================================================
 # Sully’s Advertisements – Multi-Platform Strategy Console
 # UI ONLY – uses existing clients/, core/, research/, influencer/
 # ============================================================
