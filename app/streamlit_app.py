@@ -1,4 +1,4 @@
-# ============================================================
+=# ============================================================
 # Sully’s Advertisements – Multi-Platform Strategy Console
 # UI ONLY – uses existing clients/, core/, research/, influencer/
 # ============================================================
@@ -142,48 +142,56 @@ if st.button("Generate Strategy Plan"):
 # RESEARCH TAB (USES research/ FOLDER)
 # ============================================================
 with tabs[1]:  # 📊 Research & Trends
+    with tabs[1]:
     st.header("📊 Research & Trends Engine")
 
-    niche = st.text_input("Niche / Industry")
-    goal = st.selectbox("Campaign Goal", ["Awareness", "Traffic", "Conversions"])
+    # --- Imports INSIDE tab to avoid Streamlit crashes ---
+    from research.google_trends import get_google_trends
+    from research.youtube_trends import get_youtube_trends
+    from research.tiktok_trends import get_tiktok_trends
+    from research.meta_library import search_meta_ads
 
-    if st.button("Run Research"):
-        from research.trends_client import run_full_research
-
-        research_data = run_full_research(niche, goal)
-
-        # ✅ THIS IS THE DATA CONTRACT (DO NOT MOVE IT)
-        st.session_state["research"] = {
-            "niche": niche,
-            "goal": goal,
-            "keywords": research_data["keywords"],
-            "hashtags": research_data["hashtags"],
-            "locations": research_data["locations"],
-            "audiences": research_data["audiences"],
-            "age_range": research_data.get("age_range", "18-34"),
-            "gender": research_data.get("gender", "All"),
-            "platform_signals": research_data.get("platform_signals", {})
-        }
-
-        st.success("Research completed and shared with all platform tabs")
-        st.json(st.session_state["research"])
-    
-    st.markdown("#### Platforms")
-    st.checkbox("Google Trends", value=True)
-    st.checkbox("YouTube Trends", value=True)
-    st.checkbox("TikTok Creative Center", value=True)
-    st.checkbox("Meta Ad Library", value=True)
-
-    st.button("Run Research")
-
-    st.info(
-        "This tab reads from:\n"
-        "- research/google_trends.py\n"
-        "- research/youtube_trends.py\n"
-        "- research/tiktok_trends.py\n"
-        "- research/meta_library.py\n\n"
-        "No logic is duplicated here."
+    # --- User Inputs ---
+    seed = st.text_input("Seed Keyword / Niche", placeholder="e.g. streetwear, music marketing")
+    geo = st.selectbox("Target Location", ["Worldwide", "United States", "United Kingdom", "Canada"])
+    timeframe = st.selectbox(
+        "Trend Timeframe",
+        ["7d", "30d", "90d", "12m", "5y"]
     )
+
+    run = st.button("🚀 Run Research")
+
+    if run and seed:
+        with st.spinner("Collecting cross-platform research..."):
+            research_data = {
+                "seed": seed,
+                "geo": geo,
+                "timeframe": timeframe,
+                "google_trends": get_google_trends(seed, geo, timeframe),
+                "youtube_trends": get_youtube_trends(seed, geo),
+                "tiktok_trends": get_tiktok_trends(seed),
+                "meta_ads": search_meta_ads(seed)
+            }
+
+            # --- Persist data for other tabs ---
+            st.session_state["research"] = research_data
+
+        st.success("Research complete. Data is now available to all platform tabs.")
+
+        # --- Preview ---
+        st.subheader("🔍 Research Snapshot")
+
+        st.write("### Google / YouTube Trends")
+        st.json(research_data["google_trends"])
+
+        st.write("### TikTok Creative Center")
+        st.json(research_data["tiktok_trends"])
+
+        st.write("### Meta Ad Library")
+        st.json(research_data["meta_ads"])
+
+    elif run and not seed:
+        st.warning("Please enter a seed keyword.")
 
 # ============================================================
 # GOOGLE / YOUTUBE
