@@ -143,7 +143,7 @@ if st.button("Generate Strategy Plan"):
 # ============================================================
 with tabs[1]:  # 📊 Research & Trends
     with tabs[1]:
-    st.header("📊 Research & Trends Engine")
+st.header("📊 Research & Trends Engine")
 
     # --- Imports INSIDE tab to avoid Streamlit crashes ---
     from research.google_trends import get_google_trends
