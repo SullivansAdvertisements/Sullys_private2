@@ -1,6 +1,8 @@
+import streamlit as st
+
 st.set_page_config(
     page_title="Sullivan’s Multi-Platform Growth Engine",
-    layout="centered",   # CRITICAL for mobile
+    layout="centered",
     initial_sidebar_state="collapsed"
 )
 # ============================================================
