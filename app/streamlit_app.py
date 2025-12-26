@@ -141,7 +141,7 @@ if st.button("Generate Strategy Plan"):
 # ============================================================
 # RESEARCH TAB (USES research/ FOLDER)
 # ============================================================
-with tabs[1]:
+with tabs_research:
     st.header("📊 Research & Trends Engine")
 
     # --- Imports INSIDE tab to avoid Streamlit crashes ---
